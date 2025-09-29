@@ -1,0 +1,9 @@
+/* client/src/App.css */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body.dark { --bg: #111827; --text: #f9fafb; --border: #374151; --btn: #3b82f6; --btn-danger: #ef4444; --btn-success: #10b981; }
+body.light { --bg: #ffffff; --text: #111827; --border: #e5e7eb; --btn: #2563eb; --btn-danger: #dc2626; --btn-success: #059669; }
+
+.App { min-height: 100vh; background: var(--bg); color: var(--text); font-family: sans-serif; }
+button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
+input { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
