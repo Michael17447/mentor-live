@@ -1,8 +1,8 @@
-const express = require('express');
-const http = require('http');
-const cors = require('cors');
-const { Server } = require('socket.io');
-const { v4: uuidv4 } = require('uuid');
+import express from 'express';
+import http from 'http';
+import cors from 'cors';
+import { Server } from 'socket.io';
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 
@@ -42,6 +42,19 @@ app.post('/api/sessions', (req, res) => {
   });
 });
 
+// Health check endpoints (ДОБАВЛЕНО)
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'CodeMentor Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
 // === WebSocket для синхронизации ===
 io.on('connection', (socket) => {
   console.log('🔌 Подключился:', socket.id);
@@ -79,6 +92,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
