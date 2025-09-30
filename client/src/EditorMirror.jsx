@@ -20,8 +20,7 @@ const mockGPTAnalysis = (code, hotSpots) => {
   return "Продолжайте — ученик внимателен!";
 };
 
-export default function EditorMirror({ sessionId, isMentor, userId }) {
-  const { sessionId, isMentor, userId, embedMode = false } = props;
+export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false }) {
   const [code, setCode] = useState('// Начните писать код...\n');
   const [remoteCursors, setRemoteCursors] = useState({});
   const [isMicOn, setIsMicOn] = useState(false);
