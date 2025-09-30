@@ -1,3 +1,4 @@
+// VERCEL FIX: Clean component without duplicate variables - $(date)
 // client/src/EditorMirror.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
