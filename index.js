@@ -4,6 +4,9 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
+console.log('🚀 Starting CodeMentor server...');
+console.log('Node version:', process.version);
+
 const app = express();
 
 // ⚠️ Разрешаем CORS для образовательных платформ
@@ -15,7 +18,7 @@ const corsOptions = {
     'https://*.stepik.org',
     'https://*.vercel.app',
     'https://*.railway.app',
-    // Добавь сюда домены своих партнёров
+    '*' // Добавляем все домены для тестирования
   ],
   credentials: true,
   methods: ['GET', 'POST'],
@@ -44,6 +47,7 @@ app.post('/api/sessions', (req, res) => {
 
 // Health check endpoints (ДОБАВЛЕНО)
 app.get('/', (req, res) => {
+  console.log('GET / request received');
   res.json({ 
     status: 'OK', 
     message: 'CodeMentor Server is running',
@@ -52,6 +56,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  console.log('GET /api/health request received');
   res.json({ status: 'healthy' });
 });
 
@@ -91,7 +96,26 @@ io.on('connection', (socket) => {
   });
 });
 
+// Обработка ошибок
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Запуск сервера с диагностикой
 const PORT = process.env.PORT || 4000;
+
+console.log('🔧 Server configuration:');
+console.log('PORT:', PORT);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log(`✅ SERVER STARTED on port ${PORT}`);
+  console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/`);
+}).on('error', (error) => {
+  console.error('❌ FAILED to start server:', error);
+  process.exit(1);
 });
