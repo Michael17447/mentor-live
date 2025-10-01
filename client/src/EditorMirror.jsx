@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
 
-const SOCKET_SERVER = 'http://localhost:4000';
+const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
 // 🧠 Эмуляция AI-анализа (заменить на OpenAI API позже)
 const mockGPTAnalysis = (code, hotSpots) => {
