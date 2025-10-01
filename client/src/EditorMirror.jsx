@@ -201,14 +201,131 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   };
 
   return (
-    <div style={{ height: 'calc(100vh - 60px)', position: 'relative' }}>
+    <div style={{ height: '100vh', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      {/* Фиксированная панель кнопок */}
+      <div
+        style={{
+          background: 'rgba(30, 30, 30, 0.95)',
+          padding: '12px 20px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(10px)',
+          zIndex: 1000,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0
+        }}
+      >
+        {/* Левая группа кнопок */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={toggleMicrophone}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: isMicOn ? '#ef4444' : '#3b82f6',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              minWidth: '80px'
+            }}
+          >
+            🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
+          </button>
+
+          {isMentor && (
+            <>
+              <button
+                onClick={downloadSession}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#10b981',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                📥 Скачать
+              </button>
+
+              <button
+                onClick={() => setShowAIPanel(!showAIPanel)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: aiHints.length > 0 ? '#8b5cf6' : '#6b7280',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                🧠 AI ({aiHints.length})
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Правая кнопка "Выйти" */}
+        <button
+          onClick={() => window.location.href = '/'}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            border: 'none',
+            background: '#ef4444',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}
+        >
+          Выйти
+        </button>
+      </div>
+
+      {/* Индикатор активности микрофона партнёра */}
+      {remoteAudioActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: 20,
+            background: '#10b981',
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            zIndex: 2000,
+            fontSize: '12px',
+            fontWeight: '500'
+          }}
+        >
+          🎧 Партнёр говорит
+        </div>
+      )}
+
       {/* Панель AI (если открыта) */}
       {isMentor && showAIPanel && (
         <div
           style={{
             position: 'absolute',
-            top: 50,
-            left: 10,
+            top: 70,
+            left: 20,
             width: 300,
             background: '#1f2937',
             border: '1px solid #374151',
@@ -264,151 +381,44 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         </div>
       )}
 
-      {/* Основная панель кнопок */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          zIndex: 2000,
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-        }}
-      >
-        <button
-          onClick={toggleMicrophone}
-          style={{
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: 'none',
-            background: isMicOn ? 'var(--btn-danger)' : 'var(--btn-secondary)',
-            color: 'white',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '0.85rem',
-          }}
-        >
-          🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
-        </button>
-
-        {isMentor && (
-          <>
-            <button
-              onClick={downloadSession}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                background: 'var(--btn-primary)',
-                color: 'white',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '0.85rem',
-              }}
-            >
-              📥 Скачать
-            </button>
-
-            <button
-              onClick={() => setShowAIPanel(!showAIPanel)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                background: aiHints.length > 0 ? '#8b5cf6' : 'var(--btn-secondary)',
-                color: 'white',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '0.85rem',
-              }}
-            >
-              🧠 AI ({aiHints.length})
-            </button>
-          </>
-        )}
-
-        {/* Кнопка "Выйти" — справа */}
-        <button
-          onClick={() => {
-            /* Передаётся из App.jsx */
-          }}
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: 'none',
-            background: 'var(--btn-danger)',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-          }}
-        >
-          Выйти
-        </button>
-      </div>
-
-      {/* Индикатор активности микрофона партнёра */}
-      {remoteAudioActive && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 50,
-            background: 'var(--btn-success)',
-            color: 'white',
-            padding: '5px 10px',
-            borderRadius: '20px',
-            zIndex: 2000,
-          }}
-        >
-          🎧 Партнёр говорит
-        </div>
-      )}
-
       {/* Редактор кода */}
-      <Editor
-        height="100%"
-        defaultLanguage="javascript"
-        value={code}
-        onChange={handleEditorChange}
-        onMount={handleEditorMount}
-        theme={document.body.classList.contains('dark') ? 'vs-dark' : 'vs-light'}
-        options={{
-          minimap: { enabled: false },
-          fontSize: 14,
-          padding: { top: 16, bottom: 16 },
-        }}
-      />
-
-      {/* Курсоры партнёров */}
-      {Object.entries(remoteCursors).map(([id, pos]) => (
-        <div
-          key={id}
-          style={{
-            position: 'absolute',
-            left: 20,
-            top: (pos.lineNumber * 20) + 80,
-            background: '#ef4444',
-            color: 'white',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            pointerEvents: 'none',
-            zIndex: 1000,
+      <div style={{ flex: 1, position: 'relative' }}>
+        <Editor
+          height="100%"
+          defaultLanguage="javascript"
+          value={code}
+          onChange={handleEditorChange}
+          onMount={handleEditorMount}
+          theme={document.body.classList.contains('dark') ? 'vs-dark' : 'vs-light'}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 14,
+            padding: { top: 16, bottom: 16 },
+            scrollBeyondLastLine: false
           }}
-        >
-          👤 {id}
-        </div>
-      ))}
+        />
+
+        {/* Курсоры партнёров */}
+        {Object.entries(remoteCursors).map(([id, pos]) => (
+          <div
+            key={id}
+            style={{
+              position: 'absolute',
+              left: 20,
+              top: (pos.lineNumber * 20) + 80,
+              background: '#ef4444',
+              color: 'white',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              pointerEvents: 'none',
+              zIndex: 1000,
+            }}
+          >
+            👤 {id}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
