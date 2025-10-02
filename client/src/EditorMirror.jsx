@@ -28,6 +28,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [remoteAudioActive, setRemoteAudioActive] = useState(false);
   const [aiHints, setAiHints] = useState([]);
   const [showAIPanel, setShowAIPanel] = useState(false);
+  const [studentCanEdit, setStudentCanEdit] = useState(false); // Новое состояние
   const editorRef = useRef(null);
   const socketRef = useRef(null);
   const peerRef = useRef(null);
@@ -75,6 +76,25 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       logEvent('cursor-update', data);
     });
 
+    // Новые обработчики для управления редактированием
+    socket.on('student-edit-permission', (canEdit) => {
+      console.log('📝 Student edit permission:', canEdit);
+      setStudentCanEdit(canEdit);
+      
+      if (editorRef.current) {
+        editorRef.current.updateOptions({ readOnly: !canEdit });
+      }
+    });
+
+    socket.on('student-code-change', ({ code: newCode, studentId }) => {
+      if (isMentor) {
+        console.log(`📝 Student ${studentId} changed code`);
+        setCode(newCode);
+        // Пересылаем другим участникам
+        socket.emit('code-change', { sessionId, code: newCode });
+      }
+    });
+
     // AI-аналитика каждые 15 сек (только для ментора)
     let aiInterval;
     if (isMentor) {
@@ -105,6 +125,16 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (aiInterval) clearInterval(aiInterval);
     };
   }, [sessionId, isMentor, userId, code]);
+
+  // Переключение разрешения на редактирование (для ментора)
+  const toggleStudentEditPermission = () => {
+    const newPermission = !studentCanEdit;
+    setStudentCanEdit(newPermission);
+    socketRef.current.emit('toggle-student-edit', { 
+      sessionId, 
+      allowEdit: newPermission 
+    });
+  };
 
   // Переключение микрофона
   const toggleMicrophone = async () => {
@@ -157,26 +187,36 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   // Обработка изменений кода
   const handleEditorChange = (value) => {
     if (isMentor) {
+      // Ментор всегда может редактировать
       setCode(value);
       socketRef.current.emit('code-change', { sessionId, code: value });
+    } else if (studentCanEdit) {
+      // Ученик может редактировать только с разрешения
+      setCode(value);
+      socketRef.current.emit('student-code-change', { 
+        sessionId, 
+        code: value,
+        studentId: userId 
+      });
     }
   };
 
   // Настройка редактора
   const handleEditorMount = (editor) => {
     editorRef.current = editor;
+    
+    // Ученик по умолчанию не может редактировать
     if (!isMentor) {
-      editor.updateOptions({ readOnly: true });
+      editor.updateOptions({ readOnly: !studentCanEdit });
     }
+    
     editor.onDidChangeCursorPosition((e) => {
-      if (isMentor) {
-        socketRef.current.emit('cursor-move', {
-          sessionId,
-          position: e.position,
-          userId,
-        });
-        logEvent('cursor-move', { position: e.position, userId });
-      }
+      socketRef.current.emit('cursor-move', {
+        sessionId,
+        position: e.position,
+        userId,
+      });
+      logEvent('cursor-move', { position: e.position, userId });
     });
   };
 
@@ -185,6 +225,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     const data = {
       sessionId,
       aiHints,
+      studentEditEnabled: studentCanEdit,
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -241,6 +282,26 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           {isMentor && (
             <>
               <button
+                onClick={toggleStudentEditPermission}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: studentCanEdit ? '#f59e0b' : '#6b7280',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                title={studentCanEdit ? "Запретить ученику редактирование" : "Разрешить ученику редактирование"}
+              >
+                {studentCanEdit ? '🔒 Заблокировать' : '✏️ Разрешить редактирование'}
+              </button>
+
+              <button
                 onClick={downloadSession}
                 style={{
                   padding: '8px 16px',
@@ -278,6 +339,20 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 🧠 AI ({aiHints.length})
               </button>
             </>
+          )}
+
+          {/* Индикатор для ученика */}
+          {!isMentor && (
+            <div style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              background: studentCanEdit ? '#10b981' : '#ef4444',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              {studentCanEdit ? '✏️ Редактирование разрешено' : '🔒 Только просмотр'}
+            </div>
           )}
         </div>
 
@@ -394,7 +469,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             minimap: { enabled: false },
             fontSize: 14,
             padding: { top: 16, bottom: 16 },
-            scrollBeyondLastLine: false
+            scrollBeyondLastLine: false,
+            readOnly: !isMentor && !studentCanEdit // Блокировка для ученика без разрешения
           }}
         />
 
