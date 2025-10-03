@@ -1,9 +1,17 @@
 import { Sequelize } from 'sequelize';
 
-console.log('🔧 Initializing PostgreSQL database...');
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('🔧 Checking environment variables...');
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
 
-// ТОЛЬКО PostgreSQL - без SQLite
+// Проверяем что DATABASE_URL установлен
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not set!');
+  console.error('Please set DATABASE_URL environment variable in Railway');
+  process.exit(1);
+}
+
+console.log('✅ DATABASE_URL found, initializing PostgreSQL...');
+
 const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   logging: console.log,
@@ -12,14 +20,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       require: true,
       rejectUnauthorized: false
     }
-  },
-  pool: {
-    max: 5,
-    min: 0,
-    acquire: 30000,
-    idle: 10000
   }
 });
 
-console.log('✅ PostgreSQL database initialized');
 export default sequelize;
