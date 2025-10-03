@@ -1,10 +1,18 @@
 import { Sequelize } from 'sequelize';
 
-// Гарантированно работающее решение с SQLite
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: './database.sqlite', // Файловая база данных
+console.log('🔧 Initializing PostgreSQL database...');
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
+// ТОЛЬКО PostgreSQL - без SQLite
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: 'postgres',
   logging: console.log,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  },
   pool: {
     max: 5,
     min: 0,
@@ -13,5 +21,5 @@ const sequelize = new Sequelize({
   }
 });
 
-console.log('✅ SQLite database initialized successfully');
+console.log('✅ PostgreSQL database initialized');
 export default sequelize;
