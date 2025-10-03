@@ -163,6 +163,28 @@ io.on('connection', (socket) => {
     console.log(`👥 Users in session ${sessionId}:`, sessions[sessionId].length);
   });
 
+  // 🔥 КРИТИЧЕСКИ ВАЖНО: Обработчик разрешения редактирования
+  socket.on('toggle-student-edit', (data) => {
+    console.log(`✏️ Student edit permission: ${data.allowEdit} in ${data.sessionId}`);
+    socket.to(data.sessionId).emit('student-edit-permission', data.allowEdit);
+  });
+
+  // 🔥 КРИТИЧЕСКИ ВАЖНО: Обработчик изменений кода от ученика
+  socket.on('student-code-change', (data) => {
+    console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
+    console.log(`📄 Code length: ${data.code?.length} chars`);
+    
+    // Пересылаем изменения ментору
+    socket.to(data.sessionId).emit('student-code-change', { 
+      code: data.code, 
+      studentId: data.studentId 
+    });
+    
+    // Логируем для отладки
+    const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
+    console.log(`📋 Student code preview: ${preview}`);
+  });
+
   // 🔥 ИЗМЕНИТЬ ЭТОТ ОБРАБОТЧИК - ДОБАВИТЬ СОХРАНЕНИЕ В БД
   socket.on('code-change', async (data) => {
     console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);

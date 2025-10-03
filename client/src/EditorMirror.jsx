@@ -1,4 +1,3 @@
-// VERCEL FIX: Clean component without duplicate variables - $(date)
 // client/src/EditorMirror.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
@@ -29,6 +28,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [aiHints, setAiHints] = useState([]);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [studentCanEdit, setStudentCanEdit] = useState(false); // Новое состояние
+  
   const editorRef = useRef(null);
   const socketRef = useRef(null);
   const peerRef = useRef(null);
@@ -46,6 +46,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       hotSpotsRef.current = hotSpotsRef.current.filter(
         h => Date.now() - h.timestamp < 30000
       );
+    }
+  };
+
+  // 🔥 ПЕРЕКЛЮЧЕНИЕ РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ
+  const toggleStudentEditPermission = () => {
+    const newPermission = !studentCanEdit;
+    setStudentCanEdit(newPermission);
+    if (socketRef.current) {
+      socketRef.current.emit('toggle-student-edit', { 
+        sessionId, 
+        allowEdit: newPermission 
+      });
     }
   };
 
@@ -76,7 +88,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       logEvent('cursor-update', data);
     });
 
-    // Новые обработчики для управления редактированием
+    // 🔥 ОБРАБОТЧИК РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ
     socket.on('student-edit-permission', (canEdit) => {
       console.log('📝 Student edit permission:', canEdit);
       setStudentCanEdit(canEdit);
@@ -86,6 +98,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       }
     });
 
+    // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА
     socket.on('student-code-change', ({ code: newCode, studentId }) => {
       if (isMentor) {
         console.log(`📝 Student ${studentId} changed code`);
@@ -125,16 +138,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (aiInterval) clearInterval(aiInterval);
     };
   }, [sessionId, isMentor, userId, code]);
-
-  // Переключение разрешения на редактирование (для ментора)
-  const toggleStudentEditPermission = () => {
-    const newPermission = !studentCanEdit;
-    setStudentCanEdit(newPermission);
-    socketRef.current.emit('toggle-student-edit', { 
-      sessionId, 
-      allowEdit: newPermission 
-    });
-  };
 
   // Переключение микрофона
   const toggleMicrophone = async () => {
@@ -184,7 +187,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   };
 
-  // Обработка изменений кода
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА
   const handleEditorChange = (value) => {
     if (isMentor) {
       // Ментор всегда может редактировать
@@ -279,6 +282,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
           </button>
 
+          {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ МЕНТОРА */}
           {isMentor && (
             <>
               <button
@@ -341,7 +345,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             </>
           )}
 
-          {/* Индикатор для ученика */}
+          {/* 🔥 ИНДИКАТОР ДЛЯ УЧЕНИКА */}
           {!isMentor && (
             <div style={{
               padding: '8px 16px',
