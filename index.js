@@ -5,10 +5,7 @@ import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
 // 🔥 ДОБАВИТЬ ЭТИ ИМПОРТЫ ДЛЯ БАЗЫ ДАННЫХ
-import { sequelize } from './models/index.js';
-import Session from './models/Session.js';
-import SessionEvent from './models/SessionEvent.js';
-import AIHint from './models/AIHint.js';
+import { sequelize, Session, SessionEvent, AIHint } from './models/index.js';
 
 console.log('🚀 Starting CodeMentor server...');
 console.log('Node version:', process.version);
