@@ -39,7 +39,7 @@ const io = new Server(server, {
 
 const sessions = {};
 
-// 🔥 ДОБАВИТЬ ИНИЦИАЛИЗАЦИЮ БАЗЫ ДАННЫХ
+
 const initializeDatabase = async () => {
   try {
     await sequelize.authenticate();
