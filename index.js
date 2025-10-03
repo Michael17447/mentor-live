@@ -4,6 +4,12 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
+// 🔥 ДОБАВИТЬ ЭТИ ИМПОРТЫ ДЛЯ БАЗЫ ДАННЫХ
+import { sequelize } from './models/index.js';
+import Session from './models/Session.js';
+import SessionEvent from './models/SessionEvent.js';
+import AIHint from './models/AIHint.js';
+
 console.log('🚀 Starting CodeMentor server...');
 console.log('Node version:', process.version);
 
@@ -35,6 +41,21 @@ const io = new Server(server, {
 });
 
 const sessions = {};
+
+// 🔥 ДОБАВИТЬ ИНИЦИАЛИЗАЦИЮ БАЗЫ ДАННЫХ
+const initializeDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Database connection established');
+    
+    await sequelize.sync({ alter: true });
+    console.log('✅ Database synchronized');
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+  }
+};
+
+initializeDatabase();
 
 // === API для интеграции с платформами ===
 app.post('/api/sessions', (req, res) => {
@@ -69,49 +90,165 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 🔥 ДОБАВИТЬ НОВЫЕ API ДЛЯ ИСТОРИИ
+app.get('/api/sessions/:sessionId/history', async (req, res) => {
+  try {
+    const session = await Session.findOne({
+      where: { sessionId: req.params.sessionId },
+      include: [SessionEvent, AIHint],
+      order: [[SessionEvent, 'timestamp', 'ASC']]
+    });
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    res.json(session);
+  } catch (error) {
+    console.error('❌ Failed to get session history:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/mentor/:mentorId/sessions', async (req, res) => {
+  try {
+    const mentorSessions = await Session.findAll({
+      where: { mentorId: req.params.mentorId },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json(mentorSessions);
+  } catch (error) {
+    console.error('❌ Failed to get mentor sessions:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // === WebSocket для синхронизации ===
 io.on('connection', (socket) => {
   console.log('🔌 Подключился:', socket.id);
   console.log('📍 Headers origin:', socket.handshake.headers.origin);
   console.log('📍 User agent:', socket.handshake.headers['user-agent']);
 
-  socket.on('join-session', (sessionId) => {
+  // 🔥 ИЗМЕНИТЬ ЭТОТ ОБРАБОТЧИК - ДОБАВИТЬ СОХРАНЕНИЕ В БД
+  socket.on('join-session', async (sessionId) => {
     console.log(`📥 ${socket.id} joined session: ${sessionId}`);
     socket.sessionId = sessionId;
     
     if (!sessions[sessionId]) {
       sessions[sessionId] = [];
-      console.log(`🆕 Created new session: ${sessionId}`);
+      
+      // 🔥 СОХРАНЕНИЕ СЕССИИ В БАЗУ ДАННЫХ
+      try {
+        const session = await Session.create({
+          sessionId,
+          mentorId: socket.id,
+          status: 'active'
+        });
+        
+        await SessionEvent.create({
+          type: 'session_start',
+          userId: socket.id,
+          data: { sessionId },
+          SessionId: session.id
+        });
+        
+        console.log(`🆕 Created session in database: ${sessionId}`);
+      } catch (error) {
+        console.error('❌ Failed to create session:', error);
+      }
     }
     
     sessions[sessionId].push(socket);
     socket.join(sessionId);
     
-    // Уведомляем других участников сессии
     socket.to(sessionId).emit('user-joined', { userId: socket.id });
     console.log(`👥 Users in session ${sessionId}:`, sessions[sessionId].length);
   });
 
-  // НОВЫЙ ОБРАБОТЧИК: переключение разрешения на редактирование для ученика
-  socket.on('toggle-student-edit', (data) => {
-    console.log(`✏️ Student edit permission: ${data.allowEdit} in ${data.sessionId}`);
-    socket.to(data.sessionId).emit('student-edit-permission', data.allowEdit);
-  });
-
-  // НОВЫЙ ОБРАБОТЧИК: изменения кода от ученика
-  socket.on('student-code-change', (data) => {
-    console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
+  // 🔥 ИЗМЕНИТЬ ЭТОТ ОБРАБОТЧИК - ДОБАВИТЬ СОХРАНЕНИЕ В БД
+  socket.on('code-change', async (data) => {
+    console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
     console.log(`📄 Code length: ${data.code?.length} chars`);
     
-    // Пересылаем изменения ментору и другим ученикам
-    socket.to(data.sessionId).emit('student-code-change', { 
-      code: data.code, 
-      studentId: data.studentId 
-    });
+    socket.to(data.sessionId).emit('code-update', data.code);
     
-    // Логируем для отладки
-    const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
-    console.log(`📋 Student code preview: ${preview}`);
+    // 🔥 СОХРАНЕНИЕ ИЗМЕНЕНИЙ КОДА В БАЗУ ДАННЫХ
+    try {
+      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
+      if (session) {
+        await SessionEvent.create({
+          type: 'code_change',
+          userId: socket.id,
+          data: { 
+            codeLength: data.code?.length,
+            lines: data.code?.split('\n').length
+          },
+          SessionId: session.id
+        });
+        
+        // Обновляем финальный код в сессии
+        await session.update({ finalCode: data.code });
+        
+        // Логируем для отладки (первые 100 символов)
+        const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
+        console.log(`📋 Code preview: ${preview}`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to save code change:', error);
+    }
+  });
+
+  // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ AI-ПОДСКАЗОК
+  socket.on('ai-hint-generated', async (data) => {
+    console.log(`🧠 AI hint in ${data.sessionId}`);
+    
+    try {
+      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
+      if (session) {
+        await AIHint.create({
+          hintText: data.hint,
+          confidence: data.confidence || 0.5,
+          SessionId: session.id
+        });
+        
+        await SessionEvent.create({
+          type: 'ai_hint',
+          userId: 'ai_system',
+          data: { hint: data.hint },
+          SessionId: session.id
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to save AI hint:', error);
+    }
+  });
+
+  // 🔥 ДОБАВИТЬ ОБРАБОТЧИК ЗАВЕРШЕНИЯ СЕССИИ
+  socket.on('end-session', async (data) => {
+    console.log(`🔚 Ending session: ${data.sessionId}`);
+    
+    try {
+      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
+      if (session) {
+        const duration = Math.floor((new Date() - session.createdAt) / 1000);
+        await session.update({ 
+          status: 'completed',
+          duration: duration
+        });
+        
+        await SessionEvent.create({
+          type: 'session_end',
+          userId: socket.id,
+          data: { reason: data.reason, duration },
+          SessionId: session.id
+        });
+        
+        console.log(`✅ Session ${data.sessionId} completed, duration: ${duration}s`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to end session:', error);
+    }
   });
 
   socket.on('signal', (data) => {
@@ -128,17 +265,6 @@ io.on('connection', (socket) => {
       userId: data.userId, 
       active: data.active 
     });
-  });
-
-  socket.on('code-change', (data) => {
-    console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
-    console.log(`📄 Code length: ${data.code?.length} chars`);
-    
-    socket.to(data.sessionId).emit('code-update', data.code);
-    
-    // Логируем для отладки (первые 100 символов)
-    const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
-    console.log(`📋 Code preview: ${preview}`);
   });
 
   socket.on('cursor-move', (data) => {
