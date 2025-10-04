@@ -44,6 +44,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const hotSpotsRef = useRef([]);
   const cursorTimeoutRef = useRef(null);
   const lastCodeUpdateRef = useRef(Date.now());
+  const reconnectAttemptsRef = useRef(0);
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -63,7 +64,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const toggleStudentEditPermission = useCallback(() => {
     const newPermission = !studentCanEdit;
     setStudentCanEdit(newPermission);
-    if (socketRef.current) {
+    if (socketRef.current?.connected) {
       socketRef.current.emit('toggle-student-edit', { 
         sessionId, 
         allowEdit: newPermission 
@@ -80,12 +81,12 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     lastCodeUpdateRef.current = Date.now();
     
     // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
-    if (isMentor) {
-      socketRef.current?.emit('code-change', { sessionId, code: value });
+    if (isMentor && socketRef.current?.connected) {
+      socketRef.current.emit('code-change', { sessionId, code: value });
     } 
     // 🔥 УЧЕНИК ТОЛЬКО С РАЗРЕШЕНИЯ
-    else if (studentCanEdit) {
-      socketRef.current?.emit('student-code-change', { 
+    else if (studentCanEdit && socketRef.current?.connected) {
+      socketRef.current.emit('student-code-change', { 
         sessionId, 
         code: value,
         studentId: userId 
@@ -100,50 +101,68 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
     
     cursorTimeoutRef.current = setTimeout(() => {
-      socketRef.current?.emit('cursor-move', {
-        sessionId,
-        position: e.position,
-        userId,
-      });
-      logEvent('cursor-move', { position: e.position, userId });
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('cursor-move', {
+          sessionId,
+          position: e.position,
+          userId,
+        });
+        logEvent('cursor-move', { position: e.position, userId });
+      }
     }, 100);
   }, [sessionId, userId, logEvent]);
 
-  // 🔥 ЗАПРОС СИНХРОНИЗАЦИИ ПРИ ПОДКЛЮЧЕНИИ
-  const requestSync = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit('request-sync', { sessionId });
+  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
+  const connectSocket = useCallback(() => {
+    if (socketRef.current?.connected) {
+      return;
     }
-  }, [sessionId]);
 
-  // Подключение к сокету и WebRTC
-  useEffect(() => {
+    console.log('🔗 Establishing socket connection...');
+    
     const socket = io(SOCKET_SERVER, {
-      timeout: 10000,
-      reconnectionAttempts: 5,
+      timeout: 20000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
+      transports: ['websocket', 'polling']
     });
     
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('✅ Connected to server');
+      console.log('✅ Connected to server, SID:', socket.id);
       setIsConnected(true);
-      socket.emit('join-session', sessionId);
+      reconnectAttemptsRef.current = 0;
       
-      // Запрашиваем синхронизацию после подключения
-      setTimeout(requestSync, 500);
+      // Присоединяемся к сессии только после успешного подключения
+      socket.emit('join-session', sessionId);
     });
 
-    socket.on('disconnect', () => {
-      console.log('❌ Disconnected from server');
+    socket.on('disconnect', (reason) => {
+      console.log('❌ Disconnected from server, reason:', reason);
       setIsConnected(false);
     });
 
-    socket.on('reconnect', () => {
-      console.log('🔄 Reconnected to server');
+    socket.on('reconnect', (attemptNumber) => {
+      console.log(`🔄 Reconnected to server after ${attemptNumber} attempts`);
       setIsConnected(true);
       socket.emit('join-session', sessionId);
-      requestSync();
+    });
+
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔄 Reconnection attempt ${attemptNumber}`);
+      reconnectAttemptsRef.current = attemptNumber;
+    });
+
+    socket.on('reconnect_error', (error) => {
+      console.log('❌ Reconnection error:', error);
+    });
+
+    socket.on('reconnect_failed', () => {
+      console.log('💥 Reconnection failed');
+      setIsConnected(false);
     });
 
     socket.on('signal', (data) => {
@@ -198,11 +217,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       }
     });
 
+    return socket;
+  }, [sessionId, isMentor, userId, logEvent]);
+
+  // Подключение к сокету и WebRTC
+  useEffect(() => {
+    const socket = connectSocket();
+
     // AI-аналитика каждые 15 сек (только для ментора)
     let aiInterval;
     if (isMentor) {
       aiInterval = setInterval(() => {
-        if (hotSpotsRef.current.length > 0) {
+        if (hotSpotsRef.current.length > 0 && socketRef.current?.connected) {
           const hint = mockGPTAnalysis(code, hotSpotsRef.current);
           if (hint) {
             setAiHints((prev) => [
@@ -228,7 +254,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
     return () => {
       console.log('🧹 Cleaning up socket connection');
-      socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -240,7 +270,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         clearTimeout(cursorTimeoutRef.current);
       }
     };
-  }, [sessionId, isMentor, userId, logEvent, requestSync, code]);
+  }, [sessionId, isMentor, userId, connectSocket, code]);
 
   // Настройка редактора
   const handleEditorMount = (editor) => {
@@ -272,7 +302,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           });
 
           peerRef.current.on('signal', (data) => {
-            socketRef.current?.emit('signal', { sessionId, signal: data });
+            if (socketRef.current?.connected) {
+              socketRef.current.emit('signal', { sessionId, signal: data });
+            }
           });
 
           peerRef.current.on('stream', (remoteStream) => {
@@ -283,11 +315,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         }
 
         setIsMicOn(true);
-        socketRef.current?.emit('user-audio-status', {
-          sessionId,
-          active: true,
-          userId,
-        });
+        if (socketRef.current?.connected) {
+          socketRef.current.emit('user-audio-status', {
+            sessionId,
+            active: true,
+            userId,
+          });
+        }
       } catch (err) {
         console.error('Ошибка микрофона:', err);
         alert('Не удалось получить доступ к микрофону');
@@ -297,11 +331,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
       setIsMicOn(false);
-      socketRef.current?.emit('user-audio-status', {
-        sessionId,
-        active: false,
-        userId,
-      });
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('user-audio-status', {
+          sessionId,
+          active: false,
+          userId,
+        });
+      }
     }
   };
 
@@ -325,6 +361,16 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // 🔥 КНОПКА ПЕРЕПОДКЛЮЧЕНИЯ
+  const handleReconnect = () => {
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    connectSocket();
   };
 
   return (
@@ -352,9 +398,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             background: isConnected ? '#10b981' : '#ef4444',
             color: 'white',
             fontSize: '12px',
-            fontWeight: '500'
-          }}>
-            {isConnected ? '✅ В сети' : '❌ Отключен'}
+            fontWeight: '500',
+            cursor: !isConnected ? 'pointer' : 'default'
+          }} onClick={!isConnected ? handleReconnect : undefined}>
+            {isConnected ? '✅ В сети' : '🔄 Переподключиться'}
           </div>
 
           <button
