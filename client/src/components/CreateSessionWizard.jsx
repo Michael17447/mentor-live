@@ -8,54 +8,35 @@ const CreateSessionWizard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ СЕССИИ
+  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ - ТОЛЬКО ЛОКАЛЬНОЕ СОЗДАНИЕ
   const createSession = async () => {
     setIsCreating(true);
     try {
-      console.log('🔄 Creating session with language:', selectedLanguage);
+      console.log('🚀 Creating session locally:', selectedLanguage);
       
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          language: selectedLanguage,
-          sessionType: sessionType
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Server response error:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('✅ Session created:', data);
+      // Генерируем ID сессии на клиенте
+      const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
       
-      if (data.session_id) {
-        // Редирект на сессию
-        window.location.href = `/session/${data.session_id}?language=${selectedLanguage}&role=mentor`;
-      } else {
-        throw new Error('No session ID in response');
-      }
+      // Небольшая задержка для индикатора загрузки
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('✅ Session created locally:', sessionId);
+      
+      // Редирект на сессию
+      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&role=mentor&type=${sessionType}`;
+      
     } catch (error) {
       console.error('❌ Session creation failed:', error);
-      alert('Не удалось создать сессию через сервер. Используем локальное создание...');
-      
-      // 🔥 FALLBACK: создаем сессию локально
-      const fallbackSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      window.location.href = `/session/${fallbackSessionId}?language=${selectedLanguage}&role=mentor`;
+      alert('Не удалось создать сессию. Пожалуйста, попробуйте еще раз.');
     } finally {
       setIsCreating(false);
     }
   };
 
-  // Функция для быстрого создания сессии (без сервера)
+  // Функция для быстрого создания сессии
   const quickCreateSession = () => {
     const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-    window.location.href = `/session/${sessionId}?language=${selectedLanguage}&role=mentor`;
+    window.location.href = `/session/${sessionId}?language=${selectedLanguage}&role=mentor&type=${sessionType}`;
   };
 
   return (
@@ -160,7 +141,7 @@ const CreateSessionWizard = () => {
             paddingBottom: '10px',
             marginBottom: '20px'
           }}>
-            {Object.entries(LANGUAGE_CATEGORIES).map(([key, label]) => (
+            {Object.entries(LANGUAGE_CATEGORIES).map(([key]) => (
               <button
                 key={key}
                 onClick={() => setSelectedCategory(key)}
@@ -327,92 +308,64 @@ const CreateSessionWizard = () => {
           </div>
         </div>
 
-        {/* Кнопки создания */}
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <button
-            onClick={quickCreateSession}
-            style={{
-              flex: 1,
-              padding: '16px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={(e) => {
+        {/* Кнопка создания */}
+        <button
+          onClick={createSession}
+          disabled={isCreating}
+          style={{
+            width: '100%',
+            padding: '16px',
+            background: isCreating ? '#9ca3af' : 'linear-gradient(45deg, #3b82f6, #6366f1)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            cursor: isCreating ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            if (!isCreating) {
               e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 5px 15px rgba(107, 114, 128, 0.3)';
-            }}
-            onMouseOut={(e) => {
+              e.target.style.boxShadow = '0 10px 20px rgba(59, 130, 246, 0.3)';
+            }
+          }}
+          onMouseOut={(e) => {
+            if (!isCreating) {
               e.target.style.transform = 'translateY(0)';
               e.target.style.boxShadow = 'none';
-            }}
-          >
-            ⚡ Quick Create
-          </button>
-          
-          <button
-            onClick={createSession}
-            disabled={isCreating}
-            style={{
-              flex: 2,
-              padding: '16px',
-              background: isCreating ? '#9ca3af' : 'linear-gradient(45deg, #3b82f6, #6366f1)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              cursor: isCreating ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={(e) => {
-              if (!isCreating) {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 10px 20px rgba(59, 130, 246, 0.3)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!isCreating) {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = 'none';
-              }
-            }}
-          >
-            {isCreating ? (
-              <>
-                <span style={{ 
-                  display: 'inline-block', 
-                  animation: 'spin 1s linear infinite',
-                  marginRight: '8px'
-                }}>
-                  🔄
-                </span>
-                Creating Session...
-              </>
-            ) : (
-              <>
-                🚀 Create Session (with Server)
-              </>
-            )}
-          </button>
-        </div>
+            }
+          }}
+        >
+          {isCreating ? (
+            <>
+              <span style={{ 
+                display: 'inline-block', 
+                animation: 'spin 1s linear infinite',
+                marginRight: '8px'
+              }}>
+                🔄
+              </span>
+              Creating Session...
+            </>
+          ) : (
+            <>
+              🚀 Create Session
+            </>
+          )}
+        </button>
 
         <div style={{
           marginTop: '15px',
           padding: '12px',
-          background: '#fef3cd',
-          border: '1px solid #f59e0b',
+          background: '#d1fae5',
+          border: '1px solid #10b981',
           borderRadius: '6px',
           fontSize: '12px',
-          color: '#92400e',
+          color: '#065f46',
           textAlign: 'center'
         }}>
-          💡 <strong>Tip:</strong> "Quick Create" works offline, "Create Session" uses server features
+          ✅ <strong>Ready to go!</strong> Session will be created locally in your browser
         </div>
       </div>
 
