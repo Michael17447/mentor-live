@@ -1,23 +1,30 @@
 // client/src/EditorMirror.jsx
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
-// 🧠 Эмуляция AI-анализа (заменить на OpenAI API позже)
+// 🧠 Эмуляция AI-анализа
 const mockGPTAnalysis = (code, hotSpots) => {
-  if (hotSpots.some(h => h.line > 0 && code.includes('for'))) {
+  const recentHotSpots = hotSpots.filter(h => Date.now() - h.timestamp < 30000);
+  
+  if (recentHotSpots.length === 0) return null;
+
+  if (recentHotSpots.some(h => h.line > 0 && code.includes('for'))) {
     return "Ученик часто возвращается к циклу for. Объясните, как работает итерация.";
   }
   if (code.includes('function')) {
     return "Обнаружена функция. Ученик может не понимать замыкания или область видимости.";
   }
-  if (code.includes('console.log') && hotSpots.length > 2) {
+  if (code.includes('console.log') && recentHotSpots.length > 2) {
     return "Ученик активно использует console.log. Покажите, как пользоваться точками останова в DevTools.";
   }
-  return "Продолжайте — ученик внимателен!";
+  if (recentHotSpots.length > 5) {
+    return "Ученик активно перемещается по коду. Возможно, он ищет решение.";
+  }
+  return null;
 };
 
 export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false }) {
@@ -27,16 +34,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [remoteAudioActive, setRemoteAudioActive] = useState(false);
   const [aiHints, setAiHints] = useState([]);
   const [showAIPanel, setShowAIPanel] = useState(false);
-  const [studentCanEdit, setStudentCanEdit] = useState(false); // Новое состояние
+  const [studentCanEdit, setStudentCanEdit] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   
   const editorRef = useRef(null);
   const socketRef = useRef(null);
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
   const hotSpotsRef = useRef([]);
+  const cursorTimeoutRef = useRef(null);
 
-  // Логирование событий (для AI)
-  const logEvent = (type, data) => {
+  // 🔥 Логирование событий (для AI)
+  const logEvent = useCallback((type, data) => {
     if (type === 'cursor-move' && !isMentor && data.position) {
       hotSpotsRef.current.push({
         line: data.position.lineNumber,
@@ -47,10 +56,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         h => Date.now() - h.timestamp < 30000
       );
     }
-  };
+  }, [isMentor]);
 
   // 🔥 ПЕРЕКЛЮЧЕНИЕ РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ
-  const toggleStudentEditPermission = () => {
+  const toggleStudentEditPermission = useCallback(() => {
     const newPermission = !studentCanEdit;
     setStudentCanEdit(newPermission);
     if (socketRef.current) {
@@ -59,13 +68,79 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         allowEdit: newPermission 
       });
     }
-  };
+  }, [studentCanEdit, sessionId]);
+
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА
+  const handleEditorChange = useCallback((value) => {
+    if (!value) return;
+    
+    setCode(value);
+    
+    if (isMentor) {
+      // Ментор всегда может редактировать
+      socketRef.current?.emit('code-change', { sessionId, code: value });
+    } else if (studentCanEdit) {
+      // Ученик может редактировать только с разрешения
+      socketRef.current?.emit('student-code-change', { 
+        sessionId, 
+        code: value,
+        studentId: userId 
+      });
+    }
+  }, [isMentor, studentCanEdit, sessionId, userId]);
+
+  // 🔥 ОБРАБОТЧИК ДВИЖЕНИЯ КУРСОРА С ДЕБАУНСОМ
+  const handleCursorMove = useCallback((e) => {
+    if (cursorTimeoutRef.current) {
+      clearTimeout(cursorTimeoutRef.current);
+    }
+    
+    cursorTimeoutRef.current = setTimeout(() => {
+      socketRef.current?.emit('cursor-move', {
+        sessionId,
+        position: e.position,
+        userId,
+      });
+      logEvent('cursor-move', { position: e.position, userId });
+    }, 100);
+  }, [sessionId, userId, logEvent]);
+
+  // 🔥 ЗАПРОС СИНХРОНИЗАЦИИ ПРИ ПОДКЛЮЧЕНИИ
+  const requestSync = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.emit('request-sync', { sessionId });
+    }
+  }, [sessionId]);
 
   // Подключение к сокету и WebRTC
   useEffect(() => {
-    const socket = io(SOCKET_SERVER);
+    const socket = io(SOCKET_SERVER, {
+      timeout: 10000,
+      reconnectionAttempts: 5,
+    });
+    
     socketRef.current = socket;
-    socket.emit('join-session', sessionId);
+
+    socket.on('connect', () => {
+      console.log('✅ Connected to server');
+      setIsConnected(true);
+      socket.emit('join-session', sessionId);
+      
+      // Запрашиваем синхронизацию после подключения
+      setTimeout(requestSync, 500);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Disconnected from server');
+      setIsConnected(false);
+    });
+
+    socket.on('reconnect', () => {
+      console.log('🔄 Reconnected to server');
+      setIsConnected(true);
+      socket.emit('join-session', sessionId);
+      requestSync();
+    });
 
     socket.on('signal', (data) => {
       if (peerRef.current) peerRef.current.signal(data.signal);
@@ -77,7 +152,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     socket.on('code-update', (newCode) => {
-      if (!isMentor) setCode(newCode);
+      console.log('📥 Received code update');
+      if (!isMentor) {
+        setCode(newCode);
+      }
     });
 
     socket.on('cursor-update', (data) => {
@@ -103,8 +181,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (isMentor) {
         console.log(`📝 Student ${studentId} changed code`);
         setCode(newCode);
-        // Пересылаем другим участникам
-        socket.emit('code-change', { sessionId, code: newCode });
       }
     });
 
@@ -114,20 +190,30 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       aiInterval = setInterval(() => {
         if (hotSpotsRef.current.length > 0) {
           const hint = mockGPTAnalysis(code, hotSpotsRef.current);
-          setAiHints((prev) => [
-            ...prev,
-            {
-              id: Date.now(),
-              text: hint,
-              time: new Date().toLocaleTimeString(),
-            },
-          ]);
-          setShowAIPanel(true);
+          if (hint) {
+            setAiHints((prev) => [
+              ...prev,
+              {
+                id: Date.now(),
+                text: hint,
+                time: new Date().toLocaleTimeString(),
+              },
+            ]);
+            setShowAIPanel(true);
+            
+            // Отправляем AI-подсказку на сервер
+            socket.emit('ai-hint-generated', {
+              sessionId,
+              hint: hint,
+              confidence: 0.8
+            });
+          }
         }
       }, 15000);
     }
 
     return () => {
+      console.log('🧹 Cleaning up socket connection');
       socket.disconnect();
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -136,8 +222,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         peerRef.current.destroy();
       }
       if (aiInterval) clearInterval(aiInterval);
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
     };
-  }, [sessionId, isMentor, userId, code]);
+  }, [sessionId, isMentor, userId, logEvent, requestSync]);
+
+  // 🔥 СИНХРОНИЗАЦИЯ РЕДАКТОРА ПРИ ИЗМЕНЕНИИ ПРАВ
+  useEffect(() => {
+    if (editorRef.current && !isMentor) {
+      editorRef.current.updateOptions({ readOnly: !studentCanEdit });
+    }
+  }, [studentCanEdit, isMentor]);
 
   // Переключение микрофона
   const toggleMicrophone = async () => {
@@ -154,7 +250,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           });
 
           peerRef.current.on('signal', (data) => {
-            socketRef.current.emit('signal', { sessionId, signal: data });
+            socketRef.current?.emit('signal', { sessionId, signal: data });
           });
 
           peerRef.current.on('stream', (remoteStream) => {
@@ -165,7 +261,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         }
 
         setIsMicOn(true);
-        socketRef.current.emit('user-audio-status', {
+        socketRef.current?.emit('user-audio-status', {
           sessionId,
           active: true,
           userId,
@@ -179,27 +275,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
       setIsMicOn(false);
-      socketRef.current.emit('user-audio-status', {
+      socketRef.current?.emit('user-audio-status', {
         sessionId,
         active: false,
         userId,
-      });
-    }
-  };
-
-  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА
-  const handleEditorChange = (value) => {
-    if (isMentor) {
-      // Ментор всегда может редактировать
-      setCode(value);
-      socketRef.current.emit('code-change', { sessionId, code: value });
-    } else if (studentCanEdit) {
-      // Ученик может редактировать только с разрешения
-      setCode(value);
-      socketRef.current.emit('student-code-change', { 
-        sessionId, 
-        code: value,
-        studentId: userId 
       });
     }
   };
@@ -213,20 +292,14 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       editor.updateOptions({ readOnly: !studentCanEdit });
     }
     
-    editor.onDidChangeCursorPosition((e) => {
-      socketRef.current.emit('cursor-move', {
-        sessionId,
-        position: e.position,
-        userId,
-      });
-      logEvent('cursor-move', { position: e.position, userId });
-    });
+    editor.onDidChangeCursorPosition(handleCursorMove);
   };
 
   // Скачивание сессии
   const downloadSession = () => {
     const data = {
       sessionId,
+      code,
       aiHints,
       studentEditEnabled: studentCanEdit,
       exportedAt: new Date().toISOString(),
@@ -262,6 +335,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       >
         {/* Левая группа кнопок */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Индикатор подключения */}
+          <div style={{
+            padding: '4px 8px',
+            borderRadius: '4px',
+            background: isConnected ? '#10b981' : '#ef4444',
+            color: 'white',
+            fontSize: '12px',
+            fontWeight: '500'
+          }}>
+            {isConnected ? '✅ В сети' : '❌ Отключен'}
+          </div>
+
           <button
             onClick={toggleMicrophone}
             style={{
@@ -404,7 +489,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           style={{
             position: 'absolute',
             top: 70,
-            left: 20,
+            right: 20,
             width: 300,
             background: '#1f2937',
             border: '1px solid #374151',
@@ -439,7 +524,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {aiHints.slice(-3).map((hint) => (
+            {aiHints.slice(-5).map((hint) => (
               <div
                 key={hint.id}
                 style={{
@@ -456,6 +541,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 {hint.text}
               </div>
             ))}
+            {aiHints.length === 0 && (
+              <div style={{ padding: '8px', color: '#9ca3af', textAlign: 'center' }}>
+                Пока нет подсказок от AI
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -474,7 +564,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             fontSize: 14,
             padding: { top: 16, bottom: 16 },
             scrollBeyondLastLine: false,
-            readOnly: !isMentor && !studentCanEdit // Блокировка для ученика без разрешения
+            readOnly: !isMentor && !studentCanEdit,
+            wordWrap: 'on',
+            lineNumbers: 'on',
+            folding: true,
+            lineDecorationsWidth: 10,
           }}
         />
 
@@ -495,7 +589,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               zIndex: 1000,
             }}
           >
-            👤 {id}
+            👤 {id.substring(0, 6)}
           </div>
         ))}
       </div>
