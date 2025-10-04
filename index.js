@@ -170,20 +170,26 @@ io.on('connection', (socket) => {
       };
       
       try {
-        const session = await Session.create({
-          sessionId,
-          mentorId: socket.id,
-          status: 'active'
-        });
-        
-        await SessionEvent.create({
-          type: 'session_start',
-          userId: socket.id,
-          data: { sessionId },
-          SessionId: session.id
-        });
-        
-        console.log(`🆕 Created session in database: ${sessionId}`);
+        // 🔥 ПРОВЕРЯЕМ, ЧТО СЕССИИ ЕЩЁ НЕТ В БАЗЕ ДАННЫХ
+        const existingSession = await Session.findOne({ where: { sessionId } });
+        if (!existingSession) {
+          const session = await Session.create({
+            sessionId,
+            mentorId: socket.id,
+            status: 'active'
+          });
+          
+          await SessionEvent.create({
+            type: 'session_start',
+            userId: socket.id,
+            data: { sessionId },
+            SessionId: session.id
+          });
+          
+          console.log(`🆕 Created session in database: ${sessionId}`);
+        } else {
+          console.log(`📁 Session already exists in database: ${sessionId}`);
+        }
       } catch (error) {
         console.error('❌ Failed to create session:', error);
       }
