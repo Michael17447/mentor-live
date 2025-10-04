@@ -45,6 +45,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const cursorTimeoutRef = useRef(null);
   const lastCodeUpdateRef = useRef(Date.now());
   const reconnectAttemptsRef = useRef(0);
+  const isInitialMountRef = useRef(true);
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -112,9 +113,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }, 100);
   }, [sessionId, userId, logEvent]);
 
-  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
+  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ (ВНЕ useEffect)
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) {
+      console.log('🔗 Socket already connected');
       return;
     }
 
@@ -218,11 +220,15 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     return socket;
-  }, [sessionId, isMentor, userId, logEvent]);
+  }, [sessionId, userId, logEvent, isMentor]);
 
-  // Подключение к сокету и WebRTC
+  // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {
-    const socket = connectSocket();
+    // Подключаемся только при первоначальном монтировании
+    if (isInitialMountRef.current) {
+      connectSocket();
+      isInitialMountRef.current = false;
+    }
 
     // AI-аналитика каждые 15 сек (только для ментора)
     let aiInterval;
@@ -242,7 +248,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             setShowAIPanel(true);
             
             // Отправляем AI-подсказку на сервер
-            socket.emit('ai-hint-generated', {
+            socketRef.current.emit('ai-hint-generated', {
               sessionId,
               hint: hint,
               confidence: 0.8
@@ -253,7 +259,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
 
     return () => {
-      console.log('🧹 Cleaning up socket connection');
+      console.log('🧹 Cleaning up component');
+      if (aiInterval) clearInterval(aiInterval);
+      if (cursorTimeoutRef.current) {
+        clearTimeout(cursorTimeoutRef.current);
+      }
+    };
+  }, [sessionId, isMentor, code, connectSocket]);
+
+  // 🔥 ОТДЕЛЬНЫЙ useEffect ДЛЯ ОЧИСТКИ СОЕДИНЕНИЯ
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Cleaning up socket connection on unmount');
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
@@ -265,12 +282,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (peerRef.current) {
         peerRef.current.destroy();
       }
-      if (aiInterval) clearInterval(aiInterval);
-      if (cursorTimeoutRef.current) {
-        clearTimeout(cursorTimeoutRef.current);
-      }
     };
-  }, [sessionId, isMentor, userId, connectSocket, code]);
+  }, []);
 
   // Настройка редактора
   const handleEditorMount = (editor) => {
@@ -365,6 +378,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
   // 🔥 КНОПКА ПЕРЕПОДКЛЮЧЕНИЯ
   const handleReconnect = () => {
+    console.log('🔄 Manual reconnection requested');
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
