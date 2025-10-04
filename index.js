@@ -37,6 +37,38 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
+// 🔥 КОНФИГУРАЦИЯ ПОДДЕРЖИВАЕМЫХ ЯЗЫКОВ
+const SUPPORTED_LANGUAGES = {
+  javascript: {
+    name: "JavaScript",
+    starterCode: "// Welcome to JavaScript\nconsole.log('Hello World!');\n\nfunction example() {\n  return 'This is JavaScript';\n}"
+  },
+  typescript: {
+    name: "TypeScript", 
+    starterCode: "// Welcome to TypeScript\nconst message: string = 'Hello World!';\nconsole.log(message);\n\ninterface Example {\n  name: string;\n  value: number;\n}"
+  },
+  python: {
+    name: "Python",
+    starterCode: "# Welcome to Python\nprint('Hello World!')\n\ndef example_function():\n    return \"This is Python\""
+  },
+  java: {
+    name: "Java",
+    starterCode: "// Welcome to Java\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n    \n    public static String example() {\n        return \"This is Java\";\n    }\n}"
+  },
+  cpp: {
+    name: "C++",
+    starterCode: "// Welcome to C++\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << \"Hello World!\" << endl;\n    return 0;\n}\n\nstring example() {\n    return \"This is C++\";\n}"
+  },
+  html: {
+    name: "HTML",
+    starterCode: "<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome to HTML</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 40px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World!</h1>\n    <p>This is HTML</p>\n</body>\n</html>"
+  },
+  css: {
+    name: "CSS",
+    starterCode: "/* Welcome to CSS */\nbody {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}\n\n.header {\n    color: #333;\n    font-size: 24px;\n}"
+  }
+};
+
 // 🔥 ИСПРАВЛЕННАЯ СТРУКТУРА СЕССИЙ
 const sessions = {};
 
@@ -57,13 +89,22 @@ initializeDatabase();
 // === API для интеграции с платформами ===
 app.post('/api/sessions', (req, res) => {
   console.log('📝 Creating new session:', req.body);
-  const { course_id, lesson_id, user_id, role = 'student' } = req.body;
+  const { course_id, lesson_id, user_id, role = 'student', language = 'javascript' } = req.body;
   const sessionId = uuidv4().substring(0, 8).toUpperCase();
+  
+  // Проверяем поддержку языка
+  if (!SUPPORTED_LANGUAGES[language]) {
+    return res.status(400).json({ error: 'Unsupported language' });
+  }
+  
+  const starterCode = SUPPORTED_LANGUAGES[language].starterCode;
   
   res.json({
     session_id: sessionId,
-    join_url: `https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}`,
-    embed_iframe: `<iframe src="https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}" width="100%" height="600" allow="microphone"></iframe>`
+    language: language,
+    join_url: `https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}&language=${language}`,
+    embed_iframe: `<iframe src="https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}&language=${language}" width="100%" height="600" allow="microphone"></iframe>`,
+    starter_code: starterCode
   });
 });
 
@@ -74,7 +115,8 @@ app.get('/', (req, res) => {
     status: 'OK', 
     message: 'CodeMentor Server is running',
     timestamp: new Date().toISOString(),
-    socketConnections: Object.keys(sessions).length
+    socketConnections: Object.keys(sessions).length,
+    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES)
   });
 });
 
@@ -83,8 +125,22 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    sessions: Object.keys(sessions).length
+    sessions: Object.keys(sessions).length,
+    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES).length
   });
+});
+
+// 🔥 API ДЛЯ ПОЛУЧЕНИЯ ИНФОРМАЦИИ О ЯЗЫКАХ
+app.get('/api/languages', (req, res) => {
+  res.json(SUPPORTED_LANGUAGES);
+});
+
+app.get('/api/languages/:language', (req, res) => {
+  const language = req.params.language;
+  if (!SUPPORTED_LANGUAGES[language]) {
+    return res.status(404).json({ error: 'Language not supported' });
+  }
+  res.json(SUPPORTED_LANGUAGES[language]);
 });
 
 // 🔥 ДОБАВИТЬ НОВЫЕ API ДЛЯ ИСТОРИИ
@@ -127,12 +183,14 @@ app.get('/api/debug/sessions', (req, res) => {
     sessionId,
     userCount: sessionData.users.length,
     studentCanEdit: sessionData.studentCanEdit,
+    language: sessionData.language,
     codeLength: sessionData.code?.length,
     users: sessionData.users
   }));
   
   res.json({
     totalSessions: Object.keys(sessions).length,
+    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES),
     sessions: sessionInfo
   });
 });
@@ -156,17 +214,22 @@ io.on('connection', (socket) => {
   console.log('📍 Headers origin:', socket.handshake.headers.origin);
   console.log('📍 User agent:', socket.handshake.headers['user-agent']);
 
-  // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК join-session
-  socket.on('join-session', async (sessionId) => {
-    console.log(`📥 ${socket.id} joined session: ${sessionId}`);
+  // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК join-session С ПОДДЕРЖКОЙ ЯЗЫКОВ
+  socket.on('join-session', async (sessionId, language = 'javascript') => {
+    console.log(`📥 ${socket.id} joined session: ${sessionId} with language: ${language}`);
     socket.sessionId = sessionId;
+    
+    // Проверяем и нормализуем язык
+    const normalizedLanguage = SUPPORTED_LANGUAGES[language] ? language : 'javascript';
+    const starterCode = SUPPORTED_LANGUAGES[normalizedLanguage]?.starterCode || '// Start coding...\n';
     
     // 🔥 ИНИЦИАЛИЗАЦИЯ СЕССИИ ЕСЛИ НЕТУ
     if (!sessions[sessionId]) {
       sessions[sessionId] = {
         users: [],
-        code: '// Начните писать код...\n',
+        code: starterCode,
         studentCanEdit: false,
+        language: normalizedLanguage,
         lastActivity: Date.now()
       };
       
@@ -177,17 +240,19 @@ io.on('connection', (socket) => {
           const session = await Session.create({
             sessionId,
             mentorId: socket.id,
+            language: normalizedLanguage,
+            initialCode: starterCode,
             status: 'active'
           });
           
           await SessionEvent.create({
             type: 'session_start',
             userId: socket.id,
-            data: { sessionId },
+            data: { sessionId, language: normalizedLanguage },
             SessionId: session.id
           });
           
-          console.log(`🆕 Created session in database: ${sessionId}`);
+          console.log(`🆕 Created ${normalizedLanguage} session in database: ${sessionId}`);
         } else {
           console.log(`📁 Session already exists in database: ${sessionId}`);
         }
@@ -202,9 +267,12 @@ io.on('connection', (socket) => {
     // 🔥 ОТПРАВИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ НОВОМУ ПОЛЬЗОВАТЕЛЮ
     socket.emit('code-update', sessions[sessionId].code);
     socket.emit('student-edit-permission', sessions[sessionId].studentCanEdit);
+    socket.emit('language-changed', { 
+      language: sessions[sessionId].language
+    });
     
     socket.to(sessionId).emit('user-joined', { userId: socket.id });
-    console.log(`👥 Users in session ${sessionId}:`, sessions[sessionId].users.length);
+    console.log(`👥 Users in ${sessions[sessionId].language} session ${sessionId}:`, sessions[sessionId].users.length);
   });
 
   // 🔥 КРИТИЧЕСКИ ВАЖНО: Исправленный обработчик разрешения редактирования
@@ -224,6 +292,7 @@ io.on('connection', (socket) => {
   // 🔥 КРИТИЧЕСКИ ВАЖНО: ИСПРАВЛЕННЫЙ обработчик изменений кода от ученика
   socket.on('student-code-change', (data) => {
     console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
+    console.log(`📄 Code length: ${data.code?.length} chars`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
@@ -242,6 +311,7 @@ io.on('connection', (socket) => {
   // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК code-change
   socket.on('code-change', async (data) => {
     console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
+    console.log(`📄 Code length: ${data.code?.length} chars`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
@@ -261,7 +331,8 @@ io.on('connection', (socket) => {
           userId: socket.id,
           data: { 
             codeLength: data.code?.length,
-            lines: data.code?.split('\n').length
+            lines: data.code?.split('\n').length,
+            language: sessions[data.sessionId]?.language || 'javascript'
           },
           SessionId: session.id
         });
@@ -278,6 +349,52 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 🔥 НОВЫЙ ОБРАБОТЧИК СМЕНЫ ЯЗЫКА ПРОГРАММИРОВАНИЯ
+  socket.on('change-language', (data) => {
+    const { sessionId, language, code } = data;
+    
+    if (!SUPPORTED_LANGUAGES[language]) {
+      socket.emit('error', { message: 'Unsupported language' });
+      return;
+    }
+    
+    if (sessions[sessionId]) {
+      const previousLanguage = sessions[sessionId].language;
+      sessions[sessionId].language = language;
+      
+      // Если передан новый код, используем его, иначе используем стартовый код языка
+      if (code) {
+        sessions[sessionId].code = code;
+      } else {
+        sessions[sessionId].code = SUPPORTED_LANGUAGES[language].starterCode;
+      }
+      
+      sessions[sessionId].lastActivity = Date.now();
+      
+      console.log(`🌍 Language changed from ${previousLanguage} to ${language} in session ${sessionId}`);
+      
+      // Уведомляем всех участников сессии о смене языка
+      io.to(sessionId).emit('language-changed', {
+        language: language,
+        code: sessions[sessionId].code
+      });
+      
+      // Обновляем в базе данных
+      try {
+        Session.findOne({ where: { sessionId } }).then(session => {
+          if (session) {
+            session.update({
+              language: language,
+              initialCode: sessions[sessionId].code
+            });
+          }
+        });
+      } catch (error) {
+        console.error('❌ Failed to update session language:', error);
+      }
+    }
+  });
+
   // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ СИНХРОНИЗАЦИИ
   socket.on('request-sync', (data) => {
     console.log(`🔄 Sync requested for session: ${data.sessionId}`);
@@ -286,6 +403,9 @@ io.on('connection', (socket) => {
       // Отправить текущее состояние запросившему пользователю
       socket.emit('code-update', sessions[data.sessionId].code);
       socket.emit('student-edit-permission', sessions[data.sessionId].studentCanEdit);
+      socket.emit('language-changed', { 
+        language: sessions[data.sessionId].language
+      });
       console.log(`✅ Sync completed for ${socket.id}`);
     }
   });
@@ -297,6 +417,7 @@ io.on('connection', (socket) => {
     const sessionState = sessions[data.sessionId] ? {
       code: sessions[data.sessionId].code,
       studentCanEdit: sessions[data.sessionId].studentCanEdit,
+      language: sessions[data.sessionId].language,
       userCount: sessions[data.sessionId].users.length
     } : null;
     
@@ -305,7 +426,7 @@ io.on('connection', (socket) => {
 
   // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ AI-ПОДСКАЗОК
   socket.on('ai-hint-generated', async (data) => {
-    console.log(`🧠 AI hint in ${data.sessionId}`);
+    console.log(`🧠 AI hint in ${data.sessionId} for ${data.language || 'javascript'}`);
     
     try {
       const session = await Session.findOne({ where: { sessionId: data.sessionId } });
@@ -313,13 +434,17 @@ io.on('connection', (socket) => {
         await AIHint.create({
           hintText: data.hint,
           confidence: data.confidence || 0.5,
+          language: data.language || 'javascript',
           SessionId: session.id
         });
         
         await SessionEvent.create({
           type: 'ai_hint',
           userId: 'ai_system',
-          data: { hint: data.hint },
+          data: { 
+            hint: data.hint,
+            language: data.language || 'javascript'
+          },
           SessionId: session.id
         });
       }
@@ -344,11 +469,15 @@ io.on('connection', (socket) => {
         await SessionEvent.create({
           type: 'session_end',
           userId: socket.id,
-          data: { reason: data.reason, duration },
+          data: { 
+            reason: data.reason, 
+            duration,
+            language: sessions[data.sessionId]?.language || 'javascript'
+          },
           SessionId: session.id
         });
         
-        console.log(`✅ Session ${data.sessionId} completed, duration: ${duration}s`);
+        console.log(`✅ Session ${data.sessionId} completed, duration: ${duration}s, language: ${sessions[data.sessionId]?.language}`);
       }
     } catch (error) {
       console.error('❌ Failed to end session:', error);
@@ -433,7 +562,7 @@ io.on('connection', (socket) => {
 setInterval(() => {
   console.log('🔄 Active sessions:', Object.keys(sessions).length);
   Object.entries(sessions).forEach(([sessionId, sessionData]) => {
-    console.log(`   📍 ${sessionId}: ${sessionData.users.length} users, code: ${sessionData.code?.length} chars, edit: ${sessionData.studentCanEdit}`);
+    console.log(`   📍 ${sessionId}: ${sessionData.users.length} users, language: ${sessionData.language}, code: ${sessionData.code?.length} chars, edit: ${sessionData.studentCanEdit}`);
   });
 }, 30000);
 
@@ -453,6 +582,7 @@ console.log('🔧 Server configuration:');
 console.log('PORT:', PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('CORS: enabled for all origins');
+console.log('🌍 Supported languages:', Object.keys(SUPPORTED_LANGUAGES).join(', '));
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ SERVER STARTED on port ${PORT}`);
@@ -461,10 +591,11 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`✅ Debug endpoints available:`);
   console.log(`   📊 Sessions: http://0.0.0.0:${PORT}/api/debug/sessions`);
+  console.log(`   🌍 Languages: http://0.0.0.0:${PORT}/api/languages`);
 }).on('error', (error) => {
   console.error('❌ FAILED to start server:', error);
   process.exit(1);
 });
 
 // Экспортируем для тестирования
-export { app, io, sessions };
+export { app, io, sessions, SUPPORTED_LANGUAGES };

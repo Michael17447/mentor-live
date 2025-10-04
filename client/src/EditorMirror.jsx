@@ -3,23 +3,44 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
+import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES } from './languages.js';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
-// 🧠 Эмуляция AI-анализа
-const mockGPTAnalysis = (code, hotSpots) => {
+// 🧠 Эмуляция AI-анализа (обновляем для multi-language)
+const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   const recentHotSpots = hotSpots.filter(h => Date.now() - h.timestamp < 30000);
   
   if (recentHotSpots.length === 0) return null;
 
+  const languageSpecificHints = {
+    javascript: {
+      for: "Ученик часто возвращается к циклу for. В JavaScript также есть forEach, map для массивов.",
+      function: "Обнаружена функция. Обратите внимание на стрелочные функции и замыкания.",
+      console: "Ученик активно использует console.log. Покажите отладку в браузере."
+    },
+    python: {
+      for: "Ученик использует циклы. В Python есть list comprehensions для упрощения.",
+      def: "Обнаружена функция. Обратите внимание на отступы и docstrings.",
+      print: "Ученик использует print для отладки. Можно показать логирование."
+    },
+    java: {
+      for: "Ученик использует циклы. В Java также есть enhanced for-loop.",
+      public: "Обнаружены модификаторы доступа. Объясните public/private.",
+      System: "Ученик использует System.out.println. Можно показать логгеры."
+    }
+  };
+
+  const hints = languageSpecificHints[language] || languageSpecificHints.javascript;
+
   if (recentHotSpots.some(h => h.line > 0 && code.includes('for'))) {
-    return "Ученик часто возвращается к циклу for. Объясните, как работает итерация.";
+    return hints.for || "Ученик часто возвращается к циклу for.";
   }
-  if (code.includes('function')) {
-    return "Обнаружена функция. Ученик может не понимать замыкания или область видимости.";
+  if (code.includes('function') || code.includes('def ') || code.includes('public ')) {
+    return hints.function || "Обнаружена функция.";
   }
-  if (code.includes('console.log') && recentHotSpots.length > 2) {
-    return "Ученик активно использует console.log. Покажите, как пользоваться точками останова в DevTools.";
+  if ((code.includes('console.log') || code.includes('print') || code.includes('System.out')) && recentHotSpots.length > 2) {
+    return hints.console || "Ученик активно использует вывод для отладки.";
   }
   if (recentHotSpots.length > 5) {
     return "Ученик активно перемещается по коду. Возможно, он ищет решение.";
@@ -36,6 +57,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [studentCanEdit, setStudentCanEdit] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [currentLanguage, setCurrentLanguage] = useState('javascript');
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   
   const editorRef = useRef(null);
   const socketRef = useRef(null);
@@ -121,7 +144,33 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [sessionId]);
 
-  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ (ВНЕ useEffect)
+  // 🔥 СМЕНА ЯЗЫКА ПРОГРАММИРОВАНИЯ
+  const changeLanguage = useCallback((newLanguage) => {
+    if (!SUPPORTED_LANGUAGES[newLanguage]) {
+      console.error('Unsupported language:', newLanguage);
+      return;
+    }
+    
+    console.log(`🌍 Changing language to: ${newLanguage}`);
+    setCurrentLanguage(newLanguage);
+    setShowLanguageSelector(false);
+    
+    // Обновляем код на стартовый для нового языка
+    const newStarterCode = SUPPORTED_LANGUAGES[newLanguage].starterCode;
+    setCode(newStarterCode);
+    lastCodeUpdateRef.current = Date.now();
+    
+    // Отправляем изменение языка на сервер
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('change-language', {
+        sessionId,
+        language: newLanguage,
+        code: newStarterCode
+      });
+    }
+  }, [sessionId]);
+
+  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) {
       console.log('🔗 Socket already connected');
@@ -184,23 +233,28 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       logEvent('audio-status', { userId: remoteId, active });
     });
 
-    // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
-    const handleCodeUpdate = (newCode) => {
+    // 🔥 ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
+    socket.on('code-update', (newCode) => {
       console.log('📥 Received code update from server');
       
-      // 🔥 УПРОЩЕННАЯ ЛОГИКА: ВСЕГДА ПРИМЕНЯЕМ ОБНОВЛЕНИЯ
-      // Проверяем только чтобы не применять свои же мгновенные изменения
+      // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ НАШЕ СОБСТВЕННОЕ ИЗМЕНЕНИЕ
       const timeSinceLastUpdate = Date.now() - lastCodeUpdateRef.current;
-      
-      if (timeSinceLastUpdate > 50) { // Уменьшили до 50ms для более быстрой синхронизации
+      if (timeSinceLastUpdate > 50) {
         console.log('🔄 Applying remote code update');
         setCode(newCode);
       } else {
         console.log('⏸️ Skipping code update (too recent local change)');
       }
-    };
+    });
 
-    socket.on('code-update', handleCodeUpdate);
+    // 🔥 ОБРАБОТЧИК СМЕНЫ ЯЗЫКА ОТ СЕРВЕРА
+    socket.on('language-changed', (data) => {
+      console.log(`🌍 Language changed to: ${data.language}`);
+      setCurrentLanguage(data.language);
+      if (data.code) {
+        setCode(data.code);
+      }
+    });
 
     socket.on('cursor-update', (data) => {
       setRemoteCursors((prev) => ({
@@ -247,7 +301,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     if (isMentor) {
       aiInterval = setInterval(() => {
         if (hotSpotsRef.current.length > 0 && socketRef.current?.connected) {
-          const hint = mockGPTAnalysis(code, hotSpotsRef.current);
+          const hint = mockGPTAnalysis(code, hotSpotsRef.current, currentLanguage);
           if (hint) {
             setAiHints((prev) => [
               ...prev,
@@ -255,6 +309,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 id: Date.now(),
                 text: hint,
                 time: new Date().toLocaleTimeString(),
+                language: currentLanguage
               },
             ]);
             setShowAIPanel(true);
@@ -263,7 +318,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             socketRef.current.emit('ai-hint-generated', {
               sessionId,
               hint: hint,
-              confidence: 0.8
+              confidence: 0.8,
+              language: currentLanguage
             });
           }
         }
@@ -277,7 +333,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         clearTimeout(cursorTimeoutRef.current);
       }
     };
-  }, [sessionId, isMentor, code, connectSocket]);
+  }, [sessionId, isMentor, code, connectSocket, currentLanguage]);
 
   // 🔥 ОТДЕЛЬНЫЙ useEffect ДЛЯ ОЧИСТКИ СОЕДИНЕНИЯ
   useEffect(() => {
@@ -373,6 +429,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       code,
       aiHints,
       studentEditEnabled: studentCanEdit,
+      language: currentLanguage,
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -381,7 +438,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `codemirror-session-${sessionId}.json`;
+    a.download = `codemirror-${currentLanguage}-session-${sessionId}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -430,6 +487,94 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             {isConnected ? '✅ В сети' : '🔄 Переподключиться'}
           </div>
 
+          {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowLanguageSelector(!showLanguageSelector)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#374151',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                minWidth: '160px',
+                justifyContent: 'space-between'
+              }}
+              title="Change programming language"
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '16px' }}>
+                  {SUPPORTED_LANGUAGES[currentLanguage]?.icon}
+                </span>
+                <span>
+                  {SUPPORTED_LANGUAGES[currentLanguage]?.name}
+                </span>
+              </span>
+              <span style={{ fontSize: '12px', opacity: 0.7 }}>▼</span>
+            </button>
+
+            {/* Выпадающий список языков */}
+            {showLanguageSelector && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: '#1f2937',
+                border: '1px solid #374151',
+                borderRadius: '6px',
+                marginTop: '4px',
+                maxHeight: '300px',
+                overflowY: 'auto',
+                zIndex: 3000,
+                boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+              }}>
+                {Object.entries(SUPPORTED_LANGUAGES).map(([key, lang]) => (
+                  <button
+                    key={key}
+                    onClick={() => changeLanguage(key)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: currentLanguage === key ? '#3b82f6' : 'transparent',
+                      border: 'none',
+                      color: 'white',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      transition: 'background 0.2s'
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>{lang.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold' }}>{lang.name}</div>
+                      <div style={{ fontSize: '11px', opacity: 0.7 }}>{key}</div>
+                    </div>
+                    {currentLanguage === key && (
+                      <span style={{ 
+                        fontSize: '12px',
+                        background: 'rgba(255,255,255,0.2)',
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}>
+                        Active
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={toggleMicrophone}
             style={{
@@ -468,7 +613,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   fontSize: '14px',
                   fontWeight: '500'
                 }}
-                title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить редактирование для ученика"}
+                title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить ученику редактирование"}
               >
                 {studentCanEdit ? '🔒 Заблокировать ученика' : '✏️ Разрешить ученику'}
               </button>
@@ -593,7 +738,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             position: 'absolute',
             top: 70,
             right: 20,
-            width: 300,
+            width: 350,
             background: '#1f2937',
             border: '1px solid #374151',
             borderRadius: '8px',
@@ -612,7 +757,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               marginBottom: '8px',
             }}
           >
-            <h4 style={{ margin: 0, color: '#60a5fa' }}>🧠 AI Mentor</h4>
+            <h4 style={{ margin: 0, color: '#60a5fa' }}>
+              🧠 AI Assistant ({SUPPORTED_LANGUAGES[currentLanguage]?.icon})
+            </h4>
             <button
               onClick={() => setShowAIPanel(false)}
               style={{
@@ -638,8 +785,23 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   color: '#e5e7eb',
                 }}
               >
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '4px' }}>
-                  {hint.time}
+                <div style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#9ca3af', 
+                  marginBottom: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>{hint.time}</span>
+                  <span style={{
+                    padding: '2px 6px',
+                    background: '#1f2937',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem'
+                  }}>
+                    {SUPPORTED_LANGUAGES[hint.language]?.icon} {hint.language}
+                  </span>
                 </div>
                 {hint.text}
               </div>
@@ -657,7 +819,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       <div style={{ flex: 1, position: 'relative' }}>
         <Editor
           height="100%"
-          defaultLanguage="javascript"
+          language={SUPPORTED_LANGUAGES[currentLanguage]?.monacoLanguage || 'javascript'}
           value={code}
           onChange={handleEditorChange}
           onMount={handleEditorMount}
@@ -668,11 +830,12 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             padding: { top: 16, bottom: 16 },
             scrollBeyondLastLine: false,
             // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ
-            readOnly: isMentor ? false : !studentCanEdit,
+            readOnly: !isMentor && !studentCanEdit,
             wordWrap: 'on',
             lineNumbers: 'on',
             folding: true,
             lineDecorationsWidth: 10,
+            automaticLayout: true
           }}
         />
 
