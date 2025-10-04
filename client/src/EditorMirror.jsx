@@ -58,7 +58,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [isMentor]);
 
-  // 🔥 ПЕРЕКЛЮЧЕНИЕ РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ
+  // 🔥 ПЕРЕКЛЮЧЕНИЕ РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ УЧЕНИКА
   const toggleStudentEditPermission = useCallback(() => {
     const newPermission = !studentCanEdit;
     setStudentCanEdit(newPermission);
@@ -76,11 +76,12 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     
     setCode(value);
     
+    // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
     if (isMentor) {
-      // Ментор всегда может редактировать
       socketRef.current?.emit('code-change', { sessionId, code: value });
-    } else if (studentCanEdit) {
-      // Ученик может редактировать только с разрешения
+    } 
+    // 🔥 УЧЕНИК ТОЛЬКО С РАЗРЕШЕНИЯ
+    else if (studentCanEdit) {
       socketRef.current?.emit('student-code-change', { 
         sessionId, 
         code: value,
@@ -170,10 +171,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     socket.on('student-edit-permission', (canEdit) => {
       console.log('📝 Student edit permission:', canEdit);
       setStudentCanEdit(canEdit);
-      
-      if (editorRef.current) {
-        editorRef.current.updateOptions({ readOnly: !canEdit });
-      }
     });
 
     // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА
@@ -228,7 +225,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     };
   }, [sessionId, isMentor, userId, logEvent, requestSync]);
 
-  // 🔥 СИНХРОНИЗАЦИЯ РЕДАКТОРА ПРИ ИЗМЕНЕНИИ ПРАВ
+  // 🔥 СИНХРОНИЗАЦИЯ РЕДАКТОРА ТОЛЬКО ДЛЯ УЧЕНИКА
   useEffect(() => {
     if (editorRef.current && !isMentor) {
       editorRef.current.updateOptions({ readOnly: !studentCanEdit });
@@ -287,7 +284,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const handleEditorMount = (editor) => {
     editorRef.current = editor;
     
-    // Ученик по умолчанию не может редактировать
+    // 🔥 МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ, УЧЕНИК - ТОЛЬКО С РАЗРЕШЕНИЯ
     if (!isMentor) {
       editor.updateOptions({ readOnly: !studentCanEdit });
     }
@@ -367,7 +364,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
           </button>
 
-          {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ МЕНТОРА */}
+          {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ УЧЕНИКА */}
           {isMentor && (
             <>
               <button
@@ -385,9 +382,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   fontSize: '14px',
                   fontWeight: '500'
                 }}
-                title={studentCanEdit ? "Запретить ученику редактирование" : "Разрешить ученику редактирование"}
+                title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить редактирование для ученика"}
               >
-                {studentCanEdit ? '🔒 Заблокировать' : '✏️ Разрешить редактирование'}
+                {studentCanEdit ? '🔒 Заблокировать ученика' : '✏️ Разрешить ученику'}
               </button>
 
               <button
@@ -564,6 +561,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             fontSize: 14,
             padding: { top: 16, bottom: 16 },
             scrollBeyondLastLine: false,
+            // 🔥 МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ, УЧЕНИК - ТОЛЬКО С РАЗРЕШЕНИЯ
             readOnly: !isMentor && !studentCanEdit,
             wordWrap: 'on',
             lineNumbers: 'on',
