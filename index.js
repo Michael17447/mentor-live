@@ -213,7 +213,7 @@ io.on('connection', (socket) => {
     io.to(data.sessionId).emit('student-edit-permission', data.allowEdit);
   });
 
-  // 🔥 КРИТИЧЕСКИ ВАЖНО: Исправленный обработчик изменений кода от ученика
+  // 🔥 КРИТИЧЕСКИ ВАЖНО: ИСПРАВЛЕННЫЙ обработчик изменений кода от ученика
   socket.on('student-code-change', (data) => {
     console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
     console.log(`📄 Code length: ${data.code?.length} chars`);
@@ -223,8 +223,8 @@ io.on('connection', (socket) => {
       sessions[data.sessionId].code = data.code;
     }
     
-    // 🔥 ПЕРЕСЛАТЬ ВСЕМ, КРОМЕ ОТПРАВИТЕЛЯ
-    socket.to(data.sessionId).emit('code-update', data.code);
+    // 🔥 ПЕРЕСЛАТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ (ВКЛЮЧАЯ МЕНТОРА)
+    io.to(data.sessionId).emit('code-update', data.code);
     
     // Логируем для отладки
     const preview = data.code ? data.code.substring(0, 50) + '...' : 'empty';
