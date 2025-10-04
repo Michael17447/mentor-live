@@ -80,7 +80,7 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
 };
 
 export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false, initialLanguage = 'javascript' }) {
-  const [code, setCode] = useState(SUPPORTED_LANGUAGES[initialLanguage]?.starterCode || '// Start coding...\n');
+  const [code, setCode] = useState(SUPPORTED_LANGUAGES[initialLanguage]?.starterCode || '// Начните писать код...\n');
   const [remoteCursors, setRemoteCursors] = useState({});
   const [isMicOn, setIsMicOn] = useState(false);
   const [remoteAudioActive, setRemoteAudioActive] = useState(false);
@@ -172,7 +172,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   // 🔥 КНОПКА ПРИНУДИТЕЛЬНОЙ СИНХРОНИЗАЦИИ
   const handleForceSync = useCallback(() => {
     if (socketRef.current?.connected) {
-      console.log('🔄 Manual sync requested');
+      console.log('🔄 Ручная синхронизация запрошена');
       socketRef.current.emit('request-sync', { sessionId });
     }
   }, [sessionId]);
@@ -180,11 +180,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   // 🔥 СМЕНА ЯЗЫКА ПРОГРАММИРОВАНИЯ
   const changeLanguage = useCallback((newLanguage) => {
     if (!SUPPORTED_LANGUAGES[newLanguage]) {
-      console.error('Unsupported language:', newLanguage);
+      console.error('Неподдерживаемый язык:', newLanguage);
       return;
     }
     
-    console.log(`🌍 Changing language to: ${newLanguage}`);
+    console.log(`🌍 Смена языка на: ${newLanguage}`);
     setCurrentLanguage(newLanguage);
     setShowLanguageSelector(false);
     setShowSnippetsPanel(false);
@@ -249,11 +249,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) {
-      console.log('🔗 Socket already connected');
+      console.log('🔗 Сокет уже подключен');
       return;
     }
 
-    console.log('🔗 Establishing socket connection...');
+    console.log('🔗 Установка соединения сокета...');
     setConnectionStatus('connecting');
     
     const socket = io(SOCKET_SERVER, {
@@ -268,7 +268,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('✅ Connected to server, SID:', socket.id);
+      console.log('✅ Подключено к серверу, SID:', socket.id);
       setIsConnected(true);
       setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
@@ -278,31 +278,31 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('❌ Disconnected from server, reason:', reason);
+      console.log('❌ Отключено от сервера, причина:', reason);
       setIsConnected(false);
       setConnectionStatus('disconnected');
     });
 
     socket.on('reconnect', (attemptNumber) => {
-      console.log(`🔄 Reconnected to server after ${attemptNumber} attempts`);
+      console.log(`🔄 Переподключено к серверу после ${attemptNumber} попыток`);
       setIsConnected(true);
       setConnectionStatus('connected');
       socket.emit('join-session', sessionId, currentLanguage);
     });
 
     socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log(`🔄 Reconnection attempt ${attemptNumber}`);
+      console.log(`🔄 Попытка переподключения ${attemptNumber}`);
       reconnectAttemptsRef.current = attemptNumber;
       setConnectionStatus(`reconnecting (${attemptNumber})`);
     });
 
     socket.on('reconnect_error', (error) => {
-      console.log('❌ Reconnection error:', error);
+      console.log('❌ Ошибка переподключения:', error);
       setConnectionStatus('reconnection_error');
     });
 
     socket.on('reconnect_failed', () => {
-      console.log('💥 Reconnection failed');
+      console.log('💥 Переподключение не удалось');
       setIsConnected(false);
       setConnectionStatus('failed');
     });
@@ -318,21 +318,21 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
     // 🔥 ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
     socket.on('code-update', (newCode) => {
-      console.log('📥 Received code update from server');
+      console.log('📥 Получено обновление кода от сервера');
       
       // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ НАШЕ СОБСТВЕННОЕ ИЗМЕНЕНИЕ
       const timeSinceLastUpdate = Date.now() - lastCodeUpdateRef.current;
       if (timeSinceLastUpdate > 50) {
-        console.log('🔄 Applying remote code update');
+        console.log('🔄 Применение удаленного обновления кода');
         setCode(newCode);
       } else {
-        console.log('⏸️ Skipping code update (too recent local change)');
+        console.log('⏸️ Пропуск обновления кода (слишком недавнее локальное изменение)');
       }
     });
 
     // 🔥 ОБРАБОТЧИК СМЕНЫ ЯЗЫКА ОТ СЕРВЕРА
     socket.on('language-changed', (data) => {
-      console.log(`🌍 Language changed to: ${data.language}`);
+      console.log(`🌍 Язык изменен на: ${data.language}`);
       setCurrentLanguage(data.language);
       if (data.code) {
         setCode(data.code);
@@ -349,7 +349,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
     // 🔥 ОБРАБОТЧИК РАЗРЕШЕНИЯ РЕДАКТИРОВАНИЯ
     socket.on('student-edit-permission', (canEdit) => {
-      console.log('📝 Student edit permission:', canEdit);
+      console.log('📝 Разрешение на редактирование для ученика:', canEdit);
       setStudentCanEdit(canEdit);
       
       // 🔥 ОБНОВЛЯЕМ РЕДАКТОР ДЛЯ УЧЕНИКА
@@ -361,7 +361,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА (ДЛЯ МЕНТОРА)
     socket.on('student-code-change', ({ code: newCode, studentId }) => {
       if (isMentor) {
-        console.log(`📝 Student ${studentId} changed code, updating mentor view`);
+        console.log(`📝 Ученик ${studentId} изменил код, обновляем вид ментора`);
         // 🔥 МЕНТОР ВИДЕТ ИЗМЕНЕНИЯ УЧЕНИКА
         setCode(newCode);
         lastCodeUpdateRef.current = Date.now();
@@ -370,7 +370,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
     // 🔥 ОБРАБОТЧИК СОСТОЯНИЯ СЕССИИ
     socket.on('session-state', (state) => {
-      console.log('📊 Received session state:', state);
+      console.log('📊 Получено состояние сессии:', state);
       if (state) {
         setCode(state.code);
         setStudentCanEdit(state.studentCanEdit);
@@ -380,11 +380,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
     // 🔥 ОБРАБОТЧИК ПРИСОЕДИНЕНИЯ/ВЫХОДА ПОЛЬЗОВАТЕЛЕЙ
     socket.on('user-joined', ({ userId: joinedUserId }) => {
-      console.log(`👋 User ${joinedUserId} joined the session`);
+      console.log(`👋 Пользователь ${joinedUserId} присоединился к сессии`);
     });
 
     socket.on('user-left', ({ userId: leftUserId }) => {
-      console.log(`👋 User ${leftUserId} left the session`);
+      console.log(`👋 Пользователь ${leftUserId} покинул сессию`);
       setRemoteCursors(prev => {
         const newCursors = { ...prev };
         delete newCursors[leftUserId];
@@ -433,7 +433,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
 
     return () => {
-      console.log('🧹 Cleaning up component');
+      console.log('🧹 Очистка компонента');
       if (aiInterval) clearInterval(aiInterval);
       if (cursorTimeoutRef.current) {
         clearTimeout(cursorTimeoutRef.current);
@@ -444,7 +444,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   // 🔥 ОТДЕЛЬНЫЙ useEffect ДЛЯ ОЧИСТКИ СОЕДИНЕНИЯ
   useEffect(() => {
     return () => {
-      console.log('🧹 Cleaning up socket connection on unmount');
+      console.log('🧹 Очистка соединения сокета при размонтировании');
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
@@ -579,7 +579,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
   // 🔥 КНОПКА ПЕРЕПОДКЛЮЧЕНИЯ
   const handleReconnect = () => {
-    console.log('🔄 Manual reconnection requested');
+    console.log('🔄 Запрошено ручное переподключение');
     if (socketRef.current) {
       socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
@@ -653,14 +653,14 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               minWidth: '140px'
             }} 
             onClick={!isConnected ? handleReconnect : undefined}
-            title={`Click to ${!isConnected ? 'reconnect' : 'connection status'}`}
+            title={`Нажмите для ${!isConnected ? 'переподключения' : 'статуса соединения'}`}
           >
             <span>{getConnectionIcon()}</span>
             <span>
-              {connectionStatus === 'connected' ? 'Connected' : 
-               connectionStatus === 'connecting' ? 'Connecting...' :
-               connectionStatus === 'reconnecting' ? 'Reconnecting...' :
-               connectionStatus === 'disconnected' ? 'Disconnected' :
+              {connectionStatus === 'connected' ? 'Подключено' : 
+               connectionStatus === 'connecting' ? 'Подключение...' :
+               connectionStatus === 'reconnecting' ? 'Переподключение...' :
+               connectionStatus === 'disconnected' ? 'Отключено' :
                connectionStatus}
             </span>
             {!isConnected && <span>🔄</span>}
@@ -668,7 +668,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
           {/* 🔥 ПРОСТОЙ СЕЛЕКТОР ЯЗЫКА */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>Language:</span>
+            <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>Язык:</span>
             <select
               value={currentLanguage}
               onChange={(e) => changeLanguage(e.target.value)}
@@ -720,9 +720,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 fontSize: '14px',
                 fontWeight: '500'
               }}
-              title="Code snippets (Ctrl+S)"
+              title="Фрагменты кода (Ctrl+S)"
             >
-              📋 Snippets
+              📋 Сниппеты
             </button>
           )}
 
@@ -743,7 +743,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               minWidth: '100px'
             }}
           >
-            🎙️ {isMicOn ? 'Mute' : 'Unmute'}
+            🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
           </button>
 
           {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ УЧЕНИКА */}
@@ -766,7 +766,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 }}
                 title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить ученику редактирование"}
               >
-                {studentCanEdit ? '🔒 Block Student' : '✏️ Allow Student'}
+                {studentCanEdit ? '🔒 Заблокировать' : '✏️ Разрешить'}
               </button>
 
               <button
@@ -786,7 +786,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 }}
                 title="Принудительная синхронизация кода"
               >
-                🔄 Sync
+                🔄 Синхр.
               </button>
 
               <button
@@ -806,7 +806,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 }}
                 title="Запросить состояние сессии"
               >
-                📊 Status
+                📊 Статус
               </button>
             </>
           )}
@@ -824,7 +824,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               alignItems: 'center',
               gap: '6px'
             }}>
-              {studentCanEdit ? '✏️ Editing Allowed' : '🔒 View Only'}
+              {studentCanEdit ? '✏️ Редактирование' : '🔒 Только просмотр'}
             </div>
           )}
         </div>
@@ -847,9 +847,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               fontSize: '14px',
               fontWeight: '500'
             }}
-            title="Export code to file"
+            title="Экспорт кода в файл"
           >
-            💾 Export Code
+            💾 Экспорт кода
           </button>
 
           <button
@@ -867,9 +867,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               fontSize: '14px',
               fontWeight: '500'
             }}
-            title="Download session data"
+            title="Скачать данные сессии"
           >
-            📥 Download Session
+            📥 Скачать сессию
           </button>
 
           {/* AI Panel Toggle */}
@@ -890,7 +890,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 fontWeight: '500'
               }}
             >
-              🧠 AI ({aiHints.length})
+              🧠 ИИ ({aiHints.length})
             </button>
           )}
 
@@ -908,7 +908,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               fontWeight: '500'
             }}
           >
-            Exit
+            Выход
           </button>
         </div>
       </div>
@@ -932,7 +932,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             gap: '6px'
           }}
         >
-          🎧 Partner is speaking
+          🎧 Партнер говорит
         </div>
       )}
 
@@ -963,7 +963,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             }}
           >
             <h4 style={{ margin: 0, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🧠 AI Assistant 
+              🧠 ИИ Ассистент 
               <span style={{ 
                 fontSize: '12px', 
                 background: '#374151', 
@@ -1052,7 +1052,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             }}
           >
             <h4 style={{ margin: 0, color: 'white' }}>
-              📋 {SUPPORTED_LANGUAGES[currentLanguage]?.name} Snippets
+              📋 Сниппеты {SUPPORTED_LANGUAGES[currentLanguage]?.name}
             </h4>
             <button
               onClick={() => setShowSnippetsPanel(false)}
