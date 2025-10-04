@@ -666,6 +666,33 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             {!isConnected && <span>🔄</span>}
           </div>
 
+          {/* 🔥 ПРОСТОЙ СЕЛЕКТОР ЯЗЫКА */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>Language:</span>
+            <select
+              value={currentLanguage}
+              onChange={(e) => changeLanguage(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid #4b5563',
+                background: '#374151',
+                color: 'white',
+                fontSize: '14px',
+                minWidth: '150px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="javascript">🟨 JavaScript</option>
+              <option value="python">🐍 Python</option>
+              <option value="java">☕ Java</option>
+              <option value="cpp">⚡ C++</option>
+              <option value="html">🌐 HTML</option>
+              <option value="css">🎨 CSS</option>
+              <option value="typescript">🔷 TypeScript</option>
+            </select>
+          </div>
+
           {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
           <div style={{ position: 'relative' }}>
             <LanguageSelector
@@ -966,3 +993,137 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 key={hint.id}
                 style={{
                   padding: '12px',
+                  background: '#374151',
+                  borderRadius: '6px',
+                  borderLeft: '4px solid #8b5cf6'
+                }}
+              >
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: '#9ca3af',
+                  marginBottom: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>🕒 {hint.time}</span>
+                  <span style={{ 
+                    background: '#1f2937', 
+                    padding: '2px 6px', 
+                    borderRadius: '4px',
+                    fontSize: '10px'
+                  }}>
+                    {hint.language}
+                  </span>
+                </div>
+                <div style={{ color: 'white', fontSize: '14px' }}>
+                  {hint.text}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Панель сниппетов */}
+      {showSnippetsPanel && LANGUAGE_SNIPPETS[currentLanguage] && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: 20,
+            width: 300,
+            background: '#1f2937',
+            border: '1px solid #374151',
+            borderRadius: '8px',
+            padding: '16px',
+            zIndex: 2000,
+            maxHeight: '60vh',
+            overflowY: 'auto',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
+            }}
+          >
+            <h4 style={{ margin: 0, color: 'white' }}>
+              📋 {SUPPORTED_LANGUAGES[currentLanguage]?.name} Snippets
+            </h4>
+            <button
+              onClick={() => setShowSnippetsPanel(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: '4px'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {Object.entries(LANGUAGE_SNIPPETS[currentLanguage]).map(([name, snippet]) => (
+              <button
+                key={name}
+                onClick={() => insertSnippet(snippet)}
+                style={{
+                  padding: '10px',
+                  background: '#374151',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: '13px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.background = '#4b5563'}
+                onMouseOut={(e) => e.target.style.background = '#374151'}
+              >
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{name}</div>
+                <div style={{ 
+                  fontSize: '11px', 
+                  color: '#9ca3af',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {snippet.split('\n')[0]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Основной редактор */}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <Editor
+          height="100%"
+          language={SUPPORTED_LANGUAGES[currentLanguage]?.monacoLanguage || 'javascript'}
+          value={code}
+          onChange={handleEditorChange}
+          onMount={handleEditorMount}
+          options={{
+            minimap: { enabled: true },
+            fontSize: 14,
+            wordWrap: 'on',
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            padding: { top: 16, bottom: 16 },
+            readOnly: !isMentor && !studentCanEdit,
+            theme: 'vs-dark',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
