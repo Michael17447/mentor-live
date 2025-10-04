@@ -43,6 +43,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const localStreamRef = useRef(null);
   const hotSpotsRef = useRef([]);
   const cursorTimeoutRef = useRef(null);
+  const lastCodeUpdateRef = useRef(Date.now());
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -74,7 +75,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
+    // 🔥 ОБНОВЛЯЕМ КОД ЛОКАЛЬНО
     setCode(value);
+    lastCodeUpdateRef.current = Date.now();
     
     // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
     if (isMentor) {
@@ -152,10 +155,17 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       logEvent('audio-status', { userId: remoteId, active });
     });
 
+    // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
     socket.on('code-update', (newCode) => {
-      console.log('📥 Received code update');
-      if (!isMentor) {
+      console.log('📥 Received code update from server');
+      
+      // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ НАШЕ СОБСТВЕННОЕ ИЗМЕНЕНИЕ
+      const timeSinceLastUpdate = Date.now() - lastCodeUpdateRef.current;
+      if (timeSinceLastUpdate > 100) { // Если прошло больше 100ms с нашего последнего изменения
+        console.log('🔄 Applying remote code update');
         setCode(newCode);
+      } else {
+        console.log('⏸️ Skipping code update (too recent local change)');
       }
     });
 
@@ -173,11 +183,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       setStudentCanEdit(canEdit);
     });
 
-    // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА
+    // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА (ДЛЯ МЕНТОРА)
     socket.on('student-code-change', ({ code: newCode, studentId }) => {
       if (isMentor) {
-        console.log(`📝 Student ${studentId} changed code`);
+        console.log(`📝 Student ${studentId} changed code, updating mentor view`);
+        // 🔥 МЕНТОР ВИДЕТ ИЗМЕНЕНИЯ УЧЕНИКА
         setCode(newCode);
+        lastCodeUpdateRef.current = Date.now();
       }
     });
 
@@ -223,7 +235,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         clearTimeout(cursorTimeoutRef.current);
       }
     };
-  }, [sessionId, isMentor, userId, logEvent, requestSync]);
+  }, [sessionId, isMentor, userId, logEvent, requestSync, code]);
 
   // 🔥 СИНХРОНИЗАЦИЯ РЕДАКТОРА ТОЛЬКО ДЛЯ УЧЕНИКА
   useEffect(() => {
