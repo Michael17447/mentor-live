@@ -15,7 +15,6 @@ function App() {
   const [joinRole, setJoinRole] = useState('student');
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [recentSessions, setRecentSessions] = useState([]);
-  const [stats, setStats] = useState(null);
 
   // Генерация ID пользователя при загрузке
   useEffect(() => {
@@ -27,20 +26,7 @@ function App() {
     if (savedSessions) {
       setRecentSessions(JSON.parse(savedSessions));
     }
-
-    // Загрузка статистики сервера
-    fetchServerStats();
   }, []);
-
-  const fetchServerStats = async () => {
-    try {
-      const response = await fetch('https://mentor-live-production.up.railway.app/api/stats');
-      const data = await response.json();
-      setStats(data);
-    } catch (error) {
-      console.error('Failed to fetch server stats:', error);
-    }
-  };
 
   const createNewSession = () => {
     setCurrentView('create');
@@ -76,7 +62,7 @@ function App() {
   };
 
   const quickStartSession = (language = 'javascript', role = 'mentor') => {
-    const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const newSessionId = 'sess_' + Math.random().toString(36).substring(2, 15).toUpperCase();
     setSessionId(newSessionId);
     setIsMentor(role === 'mentor');
     setCurrentView('session');
@@ -158,14 +144,14 @@ function App() {
                   gap: '6px'
                 }}
               >
-                ← Back to Home
+                ← Назад на главную
               </button>
               <h1 style={{ color: 'white', margin: 0, fontSize: '28px' }}>
-                Create New Session
+                Создать новую сессию
               </h1>
             </div>
             <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>
-              User: {userId}
+              Пользователь: {userId}
             </div>
           </div>
 
@@ -223,42 +209,40 @@ function App() {
             margin: '0 auto 30px',
             lineHeight: '1.5'
           }}>
-            Real-time collaborative code editor with AI assistance. 
-            Teach, interview, or code together in 16+ programming languages.
+            Редактор кода с совместной работой в реальном времени. 
+            Обучайте, проводите собеседования или программируйте вместе на 16+ языках программирования.
           </p>
 
-          {/* Статистика сервера */}
-          {stats && (
-            <div style={{
-              display: 'inline-flex',
-              gap: '20px',
-              background: 'rgba(255,255,255,0.1)',
-              padding: '12px 24px',
-              borderRadius: '12px',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              marginBottom: '20px'
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>
-                  {stats.totalSessions || 0}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Active Sessions</div>
+          {/* Статистика (локальная) */}
+          <div style={{
+            display: 'inline-flex',
+            gap: '20px',
+            background: 'rgba(255,255,255,0.1)',
+            padding: '12px 24px',
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            marginBottom: '20px'
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#60a5fa' }}>
+                {recentSessions.length}
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>
-                  {stats.totalUsers || 0}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Connected Users</div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
-                  {Object.keys(SUPPORTED_LANGUAGES).length}
-                </div>
-                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Languages</div>
-              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Недавние сессии</div>
             </div>
-          )}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#34d399' }}>
+                1
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Активных пользователей</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                {Object.keys(SUPPORTED_LANGUAGES).length}
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Языков программирования</div>
+            </div>
+          </div>
         </header>
 
         {/* Основные действия */}
@@ -277,10 +261,10 @@ function App() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>👨‍🏫</div>
-            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Create Session</h2>
+            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Создать сессию</h2>
             <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>
-              Start a new coding session as a mentor. Choose from 16+ programming languages, 
-              set up the environment, and invite students to join.
+              Начните новую сессию кодинга как ментор. Выберите из 16+ языков программирования, 
+              настройте окружение и пригласите студентов присоединиться.
             </p>
             <button
               onClick={createNewSession}
@@ -299,7 +283,7 @@ function App() {
               onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
             >
-              Create New Session
+              Создать новую сессию
             </button>
           </div>
 
@@ -312,10 +296,10 @@ function App() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
-            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Join Session</h2>
+            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Присоединиться к сессии</h2>
             <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>
-              Join an existing coding session as a student or co-mentor. 
-              Enter the session ID provided by your mentor to start collaborating.
+              Присоединитесь к существующей сессии как студент или со-ментор. 
+              Введите ID сессии, предоставленный вашим ментором, чтобы начать совместную работу.
             </p>
             <button
               onClick={joinExistingSession}
@@ -334,7 +318,7 @@ function App() {
               onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
             >
-              Join Existing Session
+              Присоединиться к сессии
             </button>
           </div>
         </div>
@@ -353,7 +337,7 @@ function App() {
             boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
           }}>
             <h2 style={{ color: '#1f2937', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              ⚡ Quick Start
+              ⚡ Быстрый старт
               <span style={{ 
                 fontSize: '12px', 
                 background: '#f3f4f6', 
@@ -361,7 +345,7 @@ function App() {
                 padding: '2px 8px',
                 borderRadius: '12px'
               }}>
-                Popular Languages
+                Популярные языки
               </span>
             </h2>
             
@@ -445,7 +429,7 @@ function App() {
                 boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
               }}>
                 <h3 style={{ color: '#1f2937', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📚 Recent Sessions
+                  📚 Недавние сессии
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {recentSessions.map((session, index) => (
@@ -483,7 +467,7 @@ function App() {
                           fontSize: '12px',
                           padding: '4px'
                         }}
-                        title="Remove from history"
+                        title="Удалить из истории"
                       >
                         ✕
                       </button>
@@ -515,28 +499,28 @@ function App() {
               boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
             }}>
               <h3 style={{ color: '#1f2937', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🌟 Features
+                🌟 Возможности
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Real-time collaboration</span>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>Совместная работа в реальном времени</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>16+ programming languages</span>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>16+ языков программирования</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Voice communication</span>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>Голосовое общение</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>AI-powered insights</span>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>AI-ассистент</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ color: '#10b981', fontSize: '16px' }}>✓</span>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Code snippets & templates</span>
+                  <span style={{ fontSize: '14px', color: '#374151' }}>Шаблоны кода</span>
                 </div>
               </div>
             </div>
@@ -551,10 +535,10 @@ function App() {
           fontSize: '14px',
           marginTop: '40px'
         }}>
-          <p>CodeMentor Live • Real-time Collaborative Coding Platform</p>
+          <p>CodeMentor Live • Платформа для совместного программирования</p>
           <p style={{ fontSize: '12px', marginTop: '8px' }}>
-            Support for {Object.keys(SUPPORTED_LANGUAGES).length} programming languages • 
-            Built for education and technical interviews
+            Поддержка {Object.keys(SUPPORTED_LANGUAGES).length} языков программирования • 
+            Создано для обучения и технических собеседований
           </p>
         </footer>
       </div>
@@ -581,17 +565,17 @@ function App() {
             maxWidth: '500px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
           }}>
-            <h2 style={{ marginBottom: '20px', color: '#1f2937' }}>Join Session</h2>
+            <h2 style={{ marginBottom: '20px', color: '#1f2937' }}>Присоединиться к сессии</h2>
             
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Session ID
+                ID сессии
               </label>
               <input
                 type="text"
                 value={joinSessionId}
                 onChange={(e) => setJoinSessionId(e.target.value.toUpperCase())}
-                placeholder="Enter session ID (e.g., A1B2C3D4)"
+                placeholder="Введите ID сессии (например, A1B2C3D4)"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -605,7 +589,7 @@ function App() {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Programming Language
+                Язык программирования
               </label>
               <LanguageSelector
                 onLanguageSelect={setJoinLanguage}
@@ -616,7 +600,7 @@ function App() {
 
             <div style={{ marginBottom: '25px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
-                Join As
+                Присоединиться как
               </label>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
@@ -632,7 +616,7 @@ function App() {
                     fontWeight: joinRole === 'mentor' ? 'bold' : 'normal'
                   }}
                 >
-                  👨‍🏫 Mentor
+                  👨‍🏫 Ментор
                 </button>
                 <button
                   onClick={() => setJoinRole('student')}
@@ -647,7 +631,7 @@ function App() {
                     fontWeight: joinRole === 'student' ? 'bold' : 'normal'
                   }}
                 >
-                  👨‍🎓 Student
+                  👨‍🎓 Студент
                 </button>
               </div>
             </div>
@@ -665,7 +649,7 @@ function App() {
                   cursor: 'pointer'
                 }}
               >
-                Cancel
+                Отмена
               </button>
               <button
                 onClick={handleJoinSession}
@@ -680,7 +664,7 @@ function App() {
                   fontWeight: 'bold'
                 }}
               >
-                Join Session
+                Присоединиться
               </button>
             </div>
           </div>
