@@ -77,7 +77,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
-    // 🔥 ОБНОВЛЯЕМ КОД ЛОКАЛЬНО
+    // 🔥 ОБНОВЛЯЕМ КОД ЛОКАЛЬНО СРАЗУ
     setCode(value);
     lastCodeUpdateRef.current = Date.now();
     
@@ -112,6 +112,14 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       }
     }, 100);
   }, [sessionId, userId, logEvent]);
+
+  // 🔥 КНОПКА ПРИНУДИТЕЛЬНОЙ СИНХРОНИЗАЦИИ
+  const handleForceSync = useCallback(() => {
+    if (socketRef.current?.connected) {
+      console.log('🔄 Manual sync requested');
+      socketRef.current.emit('request-sync', { sessionId });
+    }
+  }, [sessionId]);
 
   // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ (ВНЕ useEffect)
   const connectSocket = useCallback(() => {
@@ -177,18 +185,22 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
-    socket.on('code-update', (newCode) => {
+    const handleCodeUpdate = (newCode) => {
       console.log('📥 Received code update from server');
       
-      // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ НАШЕ СОБСТВЕННОЕ ИЗМЕНЕНИЕ
+      // 🔥 УПРОЩЕННАЯ ЛОГИКА: ВСЕГДА ПРИМЕНЯЕМ ОБНОВЛЕНИЯ
+      // Проверяем только чтобы не применять свои же мгновенные изменения
       const timeSinceLastUpdate = Date.now() - lastCodeUpdateRef.current;
-      if (timeSinceLastUpdate > 100) { // Если прошло больше 100ms с нашего последнего изменения
+      
+      if (timeSinceLastUpdate > 50) { // Уменьшили до 50ms для более быстрой синхронизации
         console.log('🔄 Applying remote code update');
         setCode(newCode);
       } else {
         console.log('⏸️ Skipping code update (too recent local change)');
       }
-    });
+    };
+
+    socket.on('code-update', handleCodeUpdate);
 
     socket.on('cursor-update', (data) => {
       setRemoteCursors((prev) => ({
@@ -459,6 +471,26 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить редактирование для ученика"}
               >
                 {studentCanEdit ? '🔒 Заблокировать ученика' : '✏️ Разрешить ученику'}
+              </button>
+
+              <button
+                onClick={handleForceSync}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#6366f1',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                title="Принудительная синхронизация кода"
+              >
+                🔄 Синхронизировать
               </button>
 
               <button

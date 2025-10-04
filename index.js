@@ -166,7 +166,8 @@ io.on('connection', (socket) => {
       sessions[sessionId] = {
         users: [],
         code: '// Начните писать код...\n',
-        studentCanEdit: false // 🔥 ДОБАВИТЬ СОСТОЯНИЕ РЕДАКТИРОВАНИЯ
+        studentCanEdit: false,
+        lastActivity: Date.now()
       };
       
       try {
@@ -213,6 +214,7 @@ io.on('connection', (socket) => {
     // 🔥 СОХРАНИТЬ СОСТОЯНИЕ В СЕССИИ
     if (sessions[data.sessionId]) {
       sessions[data.sessionId].studentCanEdit = data.allowEdit;
+      sessions[data.sessionId].lastActivity = Date.now();
     }
     
     // 🔥 ОТПРАВИТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ
@@ -222,11 +224,11 @@ io.on('connection', (socket) => {
   // 🔥 КРИТИЧЕСКИ ВАЖНО: ИСПРАВЛЕННЫЙ обработчик изменений кода от ученика
   socket.on('student-code-change', (data) => {
     console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
-    console.log(`📄 Code length: ${data.code?.length} chars`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
       sessions[data.sessionId].code = data.code;
+      sessions[data.sessionId].lastActivity = Date.now();
     }
     
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ (ВКЛЮЧАЯ МЕНТОРА)
@@ -240,11 +242,11 @@ io.on('connection', (socket) => {
   // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК code-change
   socket.on('code-change', async (data) => {
     console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
-    console.log(`📄 Code length: ${data.code?.length} chars`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
       sessions[data.sessionId].code = data.code;
+      sessions[data.sessionId].lastActivity = Date.now();
     }
     
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ, КРОМЕ ОТПРАВИТЕЛЯ
