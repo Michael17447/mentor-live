@@ -181,6 +181,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     socket.on('student-edit-permission', (canEdit) => {
       console.log('📝 Student edit permission:', canEdit);
       setStudentCanEdit(canEdit);
+      
+      // 🔥 ОБНОВЛЯЕМ РЕДАКТОР ДЛЯ УЧЕНИКА
+      if (editorRef.current && !isMentor) {
+        editorRef.current.updateOptions({ readOnly: !canEdit });
+      }
     });
 
     // 🔥 ОБРАБОТЧИК ИЗМЕНЕНИЙ ОТ УЧЕНИКА (ДЛЯ МЕНТОРА)
@@ -237,12 +242,20 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     };
   }, [sessionId, isMentor, userId, logEvent, requestSync, code]);
 
-  // 🔥 СИНХРОНИЗАЦИЯ РЕДАКТОРА ТОЛЬКО ДЛЯ УЧЕНИКА
-  useEffect(() => {
-    if (editorRef.current && !isMentor) {
-      editorRef.current.updateOptions({ readOnly: !studentCanEdit });
+  // Настройка редактора
+  const handleEditorMount = (editor) => {
+    editorRef.current = editor;
+    
+    // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ
+    if (isMentor) {
+      editor.updateOptions({ readOnly: false });
+    } else {
+      // УЧЕНИК МОЖЕТ РЕДАКТИРОВАТЬ ТОЛЬКО С РАЗРЕШЕНИЯ
+      editor.updateOptions({ readOnly: !studentCanEdit });
     }
-  }, [studentCanEdit, isMentor]);
+    
+    editor.onDidChangeCursorPosition(handleCursorMove);
+  };
 
   // Переключение микрофона
   const toggleMicrophone = async () => {
@@ -290,18 +303,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         userId,
       });
     }
-  };
-
-  // Настройка редактора
-  const handleEditorMount = (editor) => {
-    editorRef.current = editor;
-    
-    // 🔥 МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ, УЧЕНИК - ТОЛЬКО С РАЗРЕШЕНИЯ
-    if (!isMentor) {
-      editor.updateOptions({ readOnly: !studentCanEdit });
-    }
-    
-    editor.onDidChangeCursorPosition(handleCursorMove);
   };
 
   // Скачивание сессии
@@ -573,8 +574,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             fontSize: 14,
             padding: { top: 16, bottom: 16 },
             scrollBeyondLastLine: false,
-            // 🔥 МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ, УЧЕНИК - ТОЛЬКО С РАЗРЕШЕНИЯ
-            readOnly: !isMentor && !studentCanEdit,
+            // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ
+            readOnly: isMentor ? false : !studentCanEdit,
             wordWrap: 'on',
             lineNumbers: 'on',
             folding: true,
