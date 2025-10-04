@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import Peer from 'simple-peer';
-import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES } from './languages.js';
+import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './languages.js';
+import LanguageSelector from './components/LanguageSelector.jsx';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
@@ -17,17 +18,41 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
     javascript: {
       for: "Ученик часто возвращается к циклу for. В JavaScript также есть forEach, map для массивов.",
       function: "Обнаружена функция. Обратите внимание на стрелочные функции и замыкания.",
-      console: "Ученик активно использует console.log. Покажите отладку в браузере."
+      console: "Ученик активно использует console.log. Покажите отладку в браузере.",
+      const: "Ученик использует const. Объясните разницу между const, let и var."
+    },
+    typescript: {
+      interface: "Ученик создает интерфейсы. Объясните преимущества TypeScript для типизации.",
+      type: "Обнаружены TypeScript типы. Покажите разницу между type и interface.",
+      any: "Ученик использует any. Рекомендуйте избегать any для лучшей типизации."
     },
     python: {
       for: "Ученик использует циклы. В Python есть list comprehensions для упрощения.",
       def: "Обнаружена функция. Обратите внимание на отступы и docstrings.",
-      print: "Ученик использует print для отладки. Можно показать логирование."
+      print: "Ученик использует print для отладки. Можно показать логирование.",
+      import: "Ученик импортирует модули. Объясните систему импортов в Python."
     },
     java: {
       for: "Ученик использует циклы. В Java также есть enhanced for-loop.",
       public: "Обнаружены модификаторы доступа. Объясните public/private.",
-      System: "Ученик использует System.out.println. Можно показать логгеры."
+      System: "Ученик использует System.out.println. Можно показать логгеры.",
+      class: "Ученик создает классы. Объясните ООП концепции в Java."
+    },
+    cpp: {
+      include: "Ученик включает заголовки. Объясните систему заголовков в C++.",
+      namespace: "Обнаружено использование namespace. Объясните их назначение.",
+      cout: "Ученик использует cout для вывода. Покажите альтернативы.",
+      pointer: "Обнаружены указатели. Убедитесь, что ученик понимает их безопасность."
+    },
+    html: {
+      div: "Ученик использует много div. Рекомендуйте семантические теги.",
+      style: "Обнаружены inline стили. Рекомендуйте внешние CSS файлы.",
+      script: "Ученик добавляет скрипты. Объясните атрибуты async/defer."
+    },
+    css: {
+      important: "Ученик использует !important. Рекомендуйте избегать его.",
+      flex: "Обнаружено использование flexbox. Покажите grid как альтернативу.",
+      position: "Ученик использует absolute позиционирование. Объясните контекст."
     }
   };
 
@@ -42,14 +67,20 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   if ((code.includes('console.log') || code.includes('print') || code.includes('System.out')) && recentHotSpots.length > 2) {
     return hints.console || "Ученик активно использует вывод для отладки.";
   }
+  if (code.includes('const') && language === 'javascript') {
+    return hints.const || "Ученик использует const.";
+  }
+  if (code.includes('interface') && language === 'typescript') {
+    return hints.interface || "Ученик создает интерфейсы TypeScript.";
+  }
   if (recentHotSpots.length > 5) {
     return "Ученик активно перемещается по коду. Возможно, он ищет решение.";
   }
   return null;
 };
 
-export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false }) {
-  const [code, setCode] = useState('// Начните писать код...\n');
+export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false, initialLanguage = 'javascript' }) {
+  const [code, setCode] = useState(SUPPORTED_LANGUAGES[initialLanguage]?.starterCode || '// Start coding...\n');
   const [remoteCursors, setRemoteCursors] = useState({});
   const [isMicOn, setIsMicOn] = useState(false);
   const [remoteAudioActive, setRemoteAudioActive] = useState(false);
@@ -57,8 +88,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [studentCanEdit, setStudentCanEdit] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState('javascript');
+  const [currentLanguage, setCurrentLanguage] = useState(initialLanguage);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  const [showSnippetsPanel, setShowSnippetsPanel] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
   
   const editorRef = useRef(null);
   const socketRef = useRef(null);
@@ -154,6 +187,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     console.log(`🌍 Changing language to: ${newLanguage}`);
     setCurrentLanguage(newLanguage);
     setShowLanguageSelector(false);
+    setShowSnippetsPanel(false);
     
     // Обновляем код на стартовый для нового языка
     const newStarterCode = SUPPORTED_LANGUAGES[newLanguage].starterCode;
@@ -170,6 +204,48 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [sessionId]);
 
+  // 🔥 ВСТАВКА СНИППЕТА КОДА
+  const insertSnippet = useCallback((snippet) => {
+    if (!editorRef.current) return;
+    
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    
+    if (selection.isEmpty()) {
+      // Вставка в позицию курсора
+      const position = editor.getPosition();
+      const range = {
+        startLineNumber: position.lineNumber,
+        startColumn: position.column,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column
+      };
+      
+      editor.executeEdits('snippet-insert', [{
+        range: range,
+        text: snippet + '\n',
+        forceMoveMarkers: true
+      }]);
+    } else {
+      // Замена выделенного текста
+      editor.executeEdits('snippet-insert', [{
+        range: selection,
+        text: snippet,
+        forceMoveMarkers: true
+      }]);
+    }
+    
+    editor.focus();
+  }, []);
+
+  // 🔥 ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ СНИППЕТОВ
+  useEffect(() => {
+    window.insertCodeSnippet = insertSnippet;
+    return () => {
+      delete window.insertCodeSnippet;
+    };
+  }, [insertSnippet]);
+
   // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) {
@@ -178,6 +254,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
 
     console.log('🔗 Establishing socket connection...');
+    setConnectionStatus('connecting');
     
     const socket = io(SOCKET_SERVER, {
       timeout: 20000,
@@ -193,35 +270,41 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     socket.on('connect', () => {
       console.log('✅ Connected to server, SID:', socket.id);
       setIsConnected(true);
+      setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
       
       // Присоединяемся к сессии только после успешного подключения
-      socket.emit('join-session', sessionId);
+      socket.emit('join-session', sessionId, currentLanguage);
     });
 
     socket.on('disconnect', (reason) => {
       console.log('❌ Disconnected from server, reason:', reason);
       setIsConnected(false);
+      setConnectionStatus('disconnected');
     });
 
     socket.on('reconnect', (attemptNumber) => {
       console.log(`🔄 Reconnected to server after ${attemptNumber} attempts`);
       setIsConnected(true);
-      socket.emit('join-session', sessionId);
+      setConnectionStatus('connected');
+      socket.emit('join-session', sessionId, currentLanguage);
     });
 
     socket.on('reconnect_attempt', (attemptNumber) => {
       console.log(`🔄 Reconnection attempt ${attemptNumber}`);
       reconnectAttemptsRef.current = attemptNumber;
+      setConnectionStatus(`reconnecting (${attemptNumber})`);
     });
 
     socket.on('reconnect_error', (error) => {
       console.log('❌ Reconnection error:', error);
+      setConnectionStatus('reconnection_error');
     });
 
     socket.on('reconnect_failed', () => {
       console.log('💥 Reconnection failed');
       setIsConnected(false);
+      setConnectionStatus('failed');
     });
 
     socket.on('signal', (data) => {
@@ -285,8 +368,32 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       }
     });
 
+    // 🔥 ОБРАБОТЧИК СОСТОЯНИЯ СЕССИИ
+    socket.on('session-state', (state) => {
+      console.log('📊 Received session state:', state);
+      if (state) {
+        setCode(state.code);
+        setStudentCanEdit(state.studentCanEdit);
+        setCurrentLanguage(state.language);
+      }
+    });
+
+    // 🔥 ОБРАБОТЧИК ПРИСОЕДИНЕНИЯ/ВЫХОДА ПОЛЬЗОВАТЕЛЕЙ
+    socket.on('user-joined', ({ userId: joinedUserId }) => {
+      console.log(`👋 User ${joinedUserId} joined the session`);
+    });
+
+    socket.on('user-left', ({ userId: leftUserId }) => {
+      console.log(`👋 User ${leftUserId} left the session`);
+      setRemoteCursors(prev => {
+        const newCursors = { ...prev };
+        delete newCursors[leftUserId];
+        return newCursors;
+      });
+    });
+
     return socket;
-  }, [sessionId, userId, logEvent, isMentor]);
+  }, [sessionId, userId, logEvent, isMentor, currentLanguage]);
 
   // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {
@@ -303,15 +410,14 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         if (hotSpotsRef.current.length > 0 && socketRef.current?.connected) {
           const hint = mockGPTAnalysis(code, hotSpotsRef.current, currentLanguage);
           if (hint) {
-            setAiHints((prev) => [
-              ...prev,
-              {
-                id: Date.now(),
-                text: hint,
-                time: new Date().toLocaleTimeString(),
-                language: currentLanguage
-              },
-            ]);
+            const newHint = {
+              id: Date.now(),
+              text: hint,
+              time: new Date().toLocaleTimeString(),
+              language: currentLanguage
+            };
+            
+            setAiHints((prev) => [...prev, newHint]);
             setShowAIPanel(true);
             
             // Отправляем AI-подсказку на сервер
@@ -366,6 +472,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
     
     editor.onDidChangeCursorPosition(handleCursorMove);
+    
+    // Добавляем комбинации клавиш для сниппетов
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      if (isMentor) {
+        setShowSnippetsPanel(!showSnippetsPanel);
+      }
+    });
   };
 
   // Переключение микрофона
@@ -424,12 +537,15 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
 
   // Скачивание сессии
   const downloadSession = () => {
+    const languageInfo = SUPPORTED_LANGUAGES[currentLanguage];
     const data = {
       sessionId,
       code,
       aiHints,
       studentEditEnabled: studentCanEdit,
       language: currentLanguage,
+      languageName: languageInfo?.name,
+      extension: languageInfo?.extension,
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -445,6 +561,22 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     URL.revokeObjectURL(url);
   };
 
+  // Экспорт кода в файл
+  const exportCode = () => {
+    const languageInfo = SUPPORTED_LANGUAGES[currentLanguage];
+    const blob = new Blob([code], {
+      type: 'text/plain',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `code${languageInfo?.extension || '.txt'}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // 🔥 КНОПКА ПЕРЕПОДКЛЮЧЕНИЯ
   const handleReconnect = () => {
     console.log('🔄 Manual reconnection requested');
@@ -454,6 +586,37 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       socketRef.current = null;
     }
     connectSocket();
+  };
+
+  // 🔥 ЗАПРОС СОСТОЯНИЯ СЕССИИ
+  const requestSessionState = () => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('get-session-state', { sessionId });
+    }
+  };
+
+  // Получение цвета статуса подключения
+  const getConnectionColor = () => {
+    switch (connectionStatus) {
+      case 'connected': return '#10b981';
+      case 'connecting': return '#f59e0b';
+      case 'reconnecting': return '#f59e0b';
+      case 'disconnected': return '#ef4444';
+      case 'failed': return '#dc2626';
+      default: return '#6b7280';
+    }
+  };
+
+  // Получение иконки статуса подключения
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case 'connected': return '✅';
+      case 'connecting': return '🔄';
+      case 'reconnecting': return '🔄';
+      case 'disconnected': return '❌';
+      case 'failed': return '💥';
+      default: return '❓';
+    }
   };
 
   return (
@@ -475,105 +638,66 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         {/* Левая группа кнопок */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* Индикатор подключения */}
-          <div style={{
-            padding: '4px 8px',
-            borderRadius: '4px',
-            background: isConnected ? '#10b981' : '#ef4444',
-            color: 'white',
-            fontSize: '12px',
-            fontWeight: '500',
-            cursor: !isConnected ? 'pointer' : 'default'
-          }} onClick={!isConnected ? handleReconnect : undefined}>
-            {isConnected ? '✅ В сети' : '🔄 Переподключиться'}
+          <div 
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              background: getConnectionColor(),
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: '500',
+              cursor: !isConnected ? 'pointer' : 'default',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: '140px'
+            }} 
+            onClick={!isConnected ? handleReconnect : undefined}
+            title={`Click to ${!isConnected ? 'reconnect' : 'connection status'}`}
+          >
+            <span>{getConnectionIcon()}</span>
+            <span>
+              {connectionStatus === 'connected' ? 'Connected' : 
+               connectionStatus === 'connecting' ? 'Connecting...' :
+               connectionStatus === 'reconnecting' ? 'Reconnecting...' :
+               connectionStatus === 'disconnected' ? 'Disconnected' :
+               connectionStatus}
+            </span>
+            {!isConnected && <span>🔄</span>}
           </div>
 
           {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
           <div style={{ position: 'relative' }}>
+            <LanguageSelector
+              onLanguageSelect={changeLanguage}
+              selectedLanguage={currentLanguage}
+              showSnippets={isMentor}
+              compact={true}
+            />
+          </div>
+
+          {/* 🔥 КНОПКА СНИППЕТОВ ДЛЯ МЕНТОРА */}
+          {isMentor && LANGUAGE_SNIPPETS[currentLanguage] && (
             <button
-              onClick={() => setShowLanguageSelector(!showLanguageSelector)}
+              onClick={() => setShowSnippetsPanel(!showSnippetsPanel)}
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
                 border: 'none',
-                background: '#374151',
+                background: showSnippetsPanel ? '#8b5cf6' : '#374151',
                 color: 'white',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '6px',
                 fontSize: '14px',
-                fontWeight: '500',
-                minWidth: '160px',
-                justifyContent: 'space-between'
+                fontWeight: '500'
               }}
-              title="Change programming language"
+              title="Code snippets (Ctrl+S)"
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '16px' }}>
-                  {SUPPORTED_LANGUAGES[currentLanguage]?.icon}
-                </span>
-                <span>
-                  {SUPPORTED_LANGUAGES[currentLanguage]?.name}
-                </span>
-              </span>
-              <span style={{ fontSize: '12px', opacity: 0.7 }}>▼</span>
+              📋 Snippets
             </button>
-
-            {/* Выпадающий список языков */}
-            {showLanguageSelector && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: '#1f2937',
-                border: '1px solid #374151',
-                borderRadius: '6px',
-                marginTop: '4px',
-                maxHeight: '300px',
-                overflowY: 'auto',
-                zIndex: 3000,
-                boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-              }}>
-                {Object.entries(SUPPORTED_LANGUAGES).map(([key, lang]) => (
-                  <button
-                    key={key}
-                    onClick={() => changeLanguage(key)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      background: currentLanguage === key ? '#3b82f6' : 'transparent',
-                      border: 'none',
-                      color: 'white',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      fontSize: '14px',
-                      textAlign: 'left',
-                      transition: 'background 0.2s'
-                    }}
-                  >
-                    <span style={{ fontSize: '18px' }}>{lang.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 'bold' }}>{lang.name}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.7 }}>{key}</div>
-                    </div>
-                    {currentLanguage === key && (
-                      <span style={{ 
-                        fontSize: '12px',
-                        background: 'rgba(255,255,255,0.2)',
-                        padding: '2px 6px',
-                        borderRadius: '4px'
-                      }}>
-                        Active
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           <button
             onClick={toggleMicrophone}
@@ -589,10 +713,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               gap: '6px',
               fontSize: '14px',
               fontWeight: '500',
-              minWidth: '80px'
+              minWidth: '100px'
             }}
           >
-            🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
+            🎙️ {isMicOn ? 'Mute' : 'Unmute'}
           </button>
 
           {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ УЧЕНИКА */}
@@ -615,7 +739,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 }}
                 title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить ученику редактирование"}
               >
-                {studentCanEdit ? '🔒 Заблокировать ученика' : '✏️ Разрешить ученику'}
+                {studentCanEdit ? '🔒 Block Student' : '✏️ Allow Student'}
               </button>
 
               <button
@@ -635,16 +759,16 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 }}
                 title="Принудительная синхронизация кода"
               >
-                🔄 Синхронизировать
+                🔄 Sync
               </button>
 
               <button
-                onClick={downloadSession}
+                onClick={requestSessionState}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: '#10b981',
+                  background: '#6b7280',
                   color: 'white',
                   cursor: 'pointer',
                   display: 'flex',
@@ -653,27 +777,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   fontSize: '14px',
                   fontWeight: '500'
                 }}
+                title="Запросить состояние сессии"
               >
-                📥 Скачать
-              </button>
-
-              <button
-                onClick={() => setShowAIPanel(!showAIPanel)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: aiHints.length > 0 ? '#8b5cf6' : '#6b7280',
-                  color: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                🧠 AI ({aiHints.length})
+                📊 Status
               </button>
             </>
           )}
@@ -686,29 +792,98 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               background: studentCanEdit ? '#10b981' : '#ef4444',
               color: 'white',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              {studentCanEdit ? '✏️ Редактирование разрешено' : '🔒 Только просмотр'}
+              {studentCanEdit ? '✏️ Editing Allowed' : '🔒 View Only'}
             </div>
           )}
         </div>
 
-        {/* Правая кнопка "Выйти" */}
-        <button
-          onClick={() => window.location.href = '/'}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '6px',
-            border: 'none',
-            background: '#ef4444',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          Выйти
-        </button>
+        {/* Правая группа кнопок */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Кнопки экспорта */}
+          <button
+            onClick={exportCode}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#059669',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Export code to file"
+          >
+            💾 Export Code
+          </button>
+
+          <button
+            onClick={downloadSession}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#10b981',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Download session data"
+          >
+            📥 Download Session
+          </button>
+
+          {/* AI Panel Toggle */}
+          {isMentor && (
+            <button
+              onClick={() => setShowAIPanel(!showAIPanel)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: aiHints.length > 0 ? '#8b5cf6' : '#6b7280',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            >
+              🧠 AI ({aiHints.length})
+            </button>
+          )}
+
+          {/* Кнопка выхода */}
+          <button
+            onClick={() => window.location.href = '/'}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#ef4444',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Exit
+          </button>
+        </div>
       </div>
 
       {/* Индикатор активности микрофона партнёра */}
@@ -724,10 +899,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             borderRadius: '20px',
             zIndex: 2000,
             fontSize: '12px',
-            fontWeight: '500'
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}
         >
-          🎧 Партнёр говорит
+          🎧 Partner is speaking
         </div>
       )}
 
@@ -738,13 +916,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             position: 'absolute',
             top: 70,
             right: 20,
-            width: 350,
+            width: 400,
             background: '#1f2937',
             border: '1px solid #374151',
             borderRadius: '8px',
-            padding: '12px',
+            padding: '16px',
             zIndex: 2000,
-            maxHeight: '40vh',
+            maxHeight: '50vh',
             overflowY: 'auto',
             boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
           }}
@@ -754,11 +932,19 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '8px',
+              marginBottom: '12px',
             }}
           >
-            <h4 style={{ margin: 0, color: '#60a5fa' }}>
-              🧠 AI Assistant ({SUPPORTED_LANGUAGES[currentLanguage]?.icon})
+            <h4 style={{ margin: 0, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🧠 AI Assistant 
+              <span style={{ 
+                fontSize: '12px', 
+                background: '#374151', 
+                padding: '2px 8px', 
+                borderRadius: '12px' 
+              }}>
+                {SUPPORTED_LANGUAGES[currentLanguage]?.icon} {currentLanguage}
+              </span>
             </h4>
             <button
               onClick={() => setShowAIPanel(false)}
@@ -767,99 +953,16 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 border: 'none',
                 color: '#9ca3af',
                 cursor: 'pointer',
-                fontSize: '1rem',
+                fontSize: '1.2rem',
+                padding: '4px'
               }}
             >
               ✕
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {aiHints.slice(-5).map((hint) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {aiHints.slice(-8).reverse().map((hint) => (
               <div
                 key={hint.id}
                 style={{
-                  padding: '8px',
-                  background: '#374151',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  color: '#e5e7eb',
-                }}
-              >
-                <div style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#9ca3af', 
-                  marginBottom: '4px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span>{hint.time}</span>
-                  <span style={{
-                    padding: '2px 6px',
-                    background: '#1f2937',
-                    borderRadius: '4px',
-                    fontSize: '0.7rem'
-                  }}>
-                    {SUPPORTED_LANGUAGES[hint.language]?.icon} {hint.language}
-                  </span>
-                </div>
-                {hint.text}
-              </div>
-            ))}
-            {aiHints.length === 0 && (
-              <div style={{ padding: '8px', color: '#9ca3af', textAlign: 'center' }}>
-                Пока нет подсказок от AI
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Редактор кода */}
-      <div style={{ flex: 1, position: 'relative' }}>
-        <Editor
-          height="100%"
-          language={SUPPORTED_LANGUAGES[currentLanguage]?.monacoLanguage || 'javascript'}
-          value={code}
-          onChange={handleEditorChange}
-          onMount={handleEditorMount}
-          theme={document.body.classList.contains('dark') ? 'vs-dark' : 'vs-light'}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 14,
-            padding: { top: 16, bottom: 16 },
-            scrollBeyondLastLine: false,
-            // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ
-            readOnly: !isMentor && !studentCanEdit,
-            wordWrap: 'on',
-            lineNumbers: 'on',
-            folding: true,
-            lineDecorationsWidth: 10,
-            automaticLayout: true
-          }}
-        />
-
-        {/* Курсоры партнёров */}
-        {Object.entries(remoteCursors).map(([id, pos]) => (
-          <div
-            key={id}
-            style={{
-              position: 'absolute',
-              left: 20,
-              top: (pos.lineNumber * 20) + 80,
-              background: '#ef4444',
-              color: 'white',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              pointerEvents: 'none',
-              zIndex: 1000,
-            }}
-          >
-            👤 {id.substring(0, 6)}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+                  padding: '12px',

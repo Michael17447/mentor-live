@@ -4,9 +4,6 @@ import cors from 'cors';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 
-// 🔥 ДОБАВИТЬ ЭТИ ИМПОРТЫ ДЛЯ БАЗЫ ДАННЫХ
-import { sequelize, Session, SessionEvent, AIHint } from './models/index.js';
-
 console.log('🚀 Starting CodeMentor server...');
 console.log('Node version:', process.version);
 
@@ -37,59 +34,186 @@ const io = new Server(server, {
   transports: ['websocket', 'polling']
 });
 
-// 🔥 КОНФИГУРАЦИЯ ПОДДЕРЖИВАЕМЫХ ЯЗЫКОВ
+// 🔥 КОНФИГУРАЦИЯ ПОДДЕРЖИВАЕМЫХ ЯЗЫКОВ (16+ языков)
 const SUPPORTED_LANGUAGES = {
   javascript: {
     name: "JavaScript",
-    starterCode: "// Welcome to JavaScript\nconsole.log('Hello World!');\n\nfunction example() {\n  return 'This is JavaScript';\n}"
+    extension: ".js",
+    monacoLanguage: "javascript",
+    starterCode: "// Welcome to JavaScript\nconsole.log('Hello World!');\n\nfunction example() {\n  return 'This is JavaScript';\n}",
+    icon: "🟨",
+    category: "web"
   },
   typescript: {
     name: "TypeScript", 
-    starterCode: "// Welcome to TypeScript\nconst message: string = 'Hello World!';\nconsole.log(message);\n\ninterface Example {\n  name: string;\n  value: number;\n}"
+    extension: ".ts",
+    monacoLanguage: "typescript",
+    starterCode: "// Welcome to TypeScript\nconst message: string = 'Hello World!';\nconsole.log(message);\n\ninterface Example {\n  name: string;\n  value: number;\n}",
+    icon: "🔷",
+    category: "web"
   },
   python: {
     name: "Python",
-    starterCode: "# Welcome to Python\nprint('Hello World!')\n\ndef example_function():\n    return \"This is Python\""
+    extension: ".py", 
+    monacoLanguage: "python",
+    starterCode: "# Welcome to Python\nprint('Hello World!')\n\ndef example_function():\n    return \"This is Python\"",
+    icon: "🐍",
+    category: "backend"
   },
   java: {
     name: "Java",
-    starterCode: "// Welcome to Java\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n    \n    public static String example() {\n        return \"This is Java\";\n    }\n}"
+    extension: ".java",
+    monacoLanguage: "java",
+    starterCode: "// Welcome to Java\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello World!\");\n    }\n    \n    public static String example() {\n        return \"This is Java\";\n    }\n}",
+    icon: "☕",
+    category: "backend"
   },
   cpp: {
     name: "C++",
-    starterCode: "// Welcome to C++\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << \"Hello World!\" << endl;\n    return 0;\n}\n\nstring example() {\n    return \"This is C++\";\n}"
+    extension: ".cpp",
+    monacoLanguage: "cpp", 
+    starterCode: "// Welcome to C++\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << \"Hello World!\" << endl;\n    return 0;\n}\n\nstring example() {\n    return \"This is C++\";\n}",
+    icon: "⚡",
+    category: "backend"
+  },
+  csharp: {
+    name: "C#",
+    extension: ".cs",
+    monacoLanguage: "csharp",
+    starterCode: "// Welcome to C#\nusing System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine(\"Hello World!\");\n    }\n    \n    static string Example() {\n        return \"This is C#\";\n    }\n}",
+    icon: "🔶",
+    category: "backend"
+  },
+  php: {
+    name: "PHP",
+    extension: ".php",
+    monacoLanguage: "php",
+    starterCode: "<?php\n// Welcome to PHP\necho 'Hello World!';\n\nfunction example() {\n    return \"This is PHP\";\n}\n?>",
+    icon: "🐘",
+    category: "backend"
+  },
+  ruby: {
+    name: "Ruby", 
+    extension: ".rb",
+    monacoLanguage: "ruby",
+    starterCode: "# Welcome to Ruby\nputs 'Hello World!'\n\ndef example\n  \"This is Ruby\"\nend",
+    icon: "💎",
+    category: "backend"
+  },
+  go: {
+    name: "Go",
+    extension: ".go",
+    monacoLanguage: "go",
+    starterCode: "// Welcome to Go\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello World!\")\n}\n\nfunc example() string {\n    return \"This is Go\"\n}",
+    icon: "🔵",
+    category: "backend"
+  },
+  rust: {
+    name: "Rust",
+    extension: ".rs", 
+    monacoLanguage: "rust",
+    starterCode: "// Welcome to Rust\nfn main() {\n    println!(\"Hello World!\");\n}\n\nfn example() -> &'static str {\n    \"This is Rust\"\n}",
+    icon: "🦀",
+    category: "backend"
+  },
+  swift: {
+    name: "Swift",
+    extension: ".swift",
+    monacoLanguage: "swift", 
+    starterCode: "// Welcome to Swift\nimport Foundation\nprint(\"Hello World!\")\n\nfunc example() -> String {\n    return \"This is Swift\"\n}",
+    icon: "🐦",
+    category: "mobile"
+  },
+  kotlin: {
+    name: "Kotlin",
+    extension: ".kt",
+    monacoLanguage: "kotlin",
+    starterCode: "// Welcome to Kotlin\nfun main() {\n    println(\"Hello World!\")\n}\n\nfun example(): String {\n    return \"This is Kotlin\"\n}",
+    icon: "🔸",
+    category: "mobile"
   },
   html: {
     name: "HTML",
-    starterCode: "<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome to HTML</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 40px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World!</h1>\n    <p>This is HTML</p>\n</body>\n</html>"
+    extension: ".html",
+    monacoLanguage: "html",
+    starterCode: "<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome to HTML</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 40px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World!</h1>\n    <p>This is HTML</p>\n</body>\n</html>",
+    icon: "🌐",
+    category: "web"
   },
   css: {
     name: "CSS",
-    starterCode: "/* Welcome to CSS */\nbody {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}\n\n.header {\n    color: #333;\n    font-size: 24px;\n}"
+    extension: ".css", 
+    monacoLanguage: "css",
+    starterCode: "/* Welcome to CSS */\nbody {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}\n\n.header {\n    color: #333;\n    font-size: 24px;\n}\n\n.container {\n    max-width: 1200px;\n    margin: 0 auto;\n}",
+    icon: "🎨",
+    category: "web"
+  },
+  sql: {
+    name: "SQL",
+    extension: ".sql",
+    monacoLanguage: "sql",
+    starterCode: "-- Welcome to SQL\n-- Create a simple table\nCREATE TABLE users (\n    id INT PRIMARY KEY,\n    name VARCHAR(50),\n    email VARCHAR(100)\n);\n\n-- Insert sample data\nINSERT INTO users (id, name, email) VALUES \n(1, 'John Doe', 'john@example.com'),\n(2, 'Jane Smith', 'jane@example.com');\n\n-- Query data\nSELECT * FROM users;",
+    icon: "🗃️",
+    category: "data"
+  },
+  json: {
+    name: "JSON",
+    extension: ".json",
+    monacoLanguage: "json",
+    starterCode: "{\n  \"welcome\": \"Hello World!\",\n  \"language\": \"JSON\",\n  \"features\": [\n    \"Easy to read\",\n    \"Lightweight\",\n    \"Language independent\"\n  ],\n  \"example\": {\n    \"name\": \"CodeMentor\",\n    \"version\": \"1.0\"\n  }\n}",
+    icon: "📄",
+    category: "data"
+  },
+  markdown: {
+    name: "Markdown", 
+    extension: ".md",
+    monacoLanguage: "markdown",
+    starterCode: "# Welcome to Markdown\n\nHello World!\n\n## Features\n\n- **Easy** to write\n- **Readable** format\n- Supports *emphasis*\n\n## Code Example\n\n```javascript\nconsole.log('Hello World!');\n```\n\n## Lists\n\n1. First item\n2. Second item\n3. Third item",
+    icon: "📝",
+    category: "markup"
+  }
+};
+
+const LANGUAGE_CATEGORIES = {
+  all: "All Languages",
+  web: ["javascript", "typescript", "html", "css"],
+  backend: ["python", "java", "cpp", "csharp", "php", "ruby", "go", "rust"],
+  mobile: ["swift", "kotlin"],
+  data: ["sql", "json"],
+  markup: ["markdown"]
+};
+
+const LANGUAGE_SNIPPETS = {
+  javascript: {
+    "For Loop": "for (let i = 0; i < array.length; i++) {\n  // Your code here\n}",
+    "Function": "function functionName(parameters) {\n  // Your code here\n  return result;\n}",
+    "Arrow Function": "const functionName = (parameters) => {\n  // Your code here\n  return result;\n};",
+    "Class": "class ClassName {\n  constructor(parameters) {\n    // Initialize\n  }\n  \n  methodName() {\n    // Method logic\n  }\n}"
+  },
+  python: {
+    "For Loop": "for item in collection:\n    # Your code here",
+    "Function": "def function_name(parameters):\n    # Your code here\n    return result",
+    "Class": "class ClassName:\n    def __init__(self, parameters):\n        # Initialize\n        \n    def method_name(self):\n        # Method logic"
+  },
+  java: {
+    "Main Method": "public static void main(String[] args) {\n    // Your code here\n}",
+    "Class": "public class ClassName {\n    // Class variables\n    \n    public ClassName() {\n        // Constructor\n    }\n    \n    public void methodName() {\n        // Method logic\n    }\n}",
+    "For Loop": "for (int i = 0; i < array.length; i++) {\n    // Your code here\n}"
+  },
+  cpp: {
+    "Main Function": "#include <iostream>\nusing namespace std;\n\nint main() {\n    // Your code here\n    return 0;\n}",
+    "Class": "class ClassName {\n  public:\n    ClassName() {\n      // Constructor\n    }\n    \n    void methodName() {\n      // Method logic\n    }\n};",
+    "For Loop": "for (int i = 0; i < count; i++) {\n    // Your code here\n}"
   }
 };
 
 // 🔥 ИСПРАВЛЕННАЯ СТРУКТУРА СЕССИЙ
 const sessions = {};
 
-const initializeDatabase = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Database connection established');
-    
-    await sequelize.sync({ alter: true });
-    console.log('✅ Database synchronized');
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
-  }
-};
-
-initializeDatabase();
-
 // === API для интеграции с платформами ===
 app.post('/api/sessions', (req, res) => {
   console.log('📝 Creating new session:', req.body);
-  const { course_id, lesson_id, user_id, role = 'student', language = 'javascript' } = req.body;
+  const { course_id, lesson_id, user_id, role = 'student', language = 'javascript', sessionType = 'mentoring' } = req.body;
   const sessionId = uuidv4().substring(0, 8).toUpperCase();
   
   // Проверяем поддержку языка
@@ -102,9 +226,12 @@ app.post('/api/sessions', (req, res) => {
   res.json({
     session_id: sessionId,
     language: language,
+    language_name: SUPPORTED_LANGUAGES[language].name,
+    session_type: sessionType,
     join_url: `https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}&language=${language}`,
     embed_iframe: `<iframe src="https://codemirror-client.vercel.app/embed/${sessionId}?role=${role}&language=${language}" width="100%" height="600" allow="microphone"></iframe>`,
-    starter_code: starterCode
+    starter_code: starterCode,
+    created_at: new Date().toISOString()
   });
 });
 
@@ -116,7 +243,8 @@ app.get('/', (req, res) => {
     message: 'CodeMentor Server is running',
     timestamp: new Date().toISOString(),
     socketConnections: Object.keys(sessions).length,
-    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES)
+    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES).length,
+    languageCategories: LANGUAGE_CATEGORIES
   });
 });
 
@@ -126,13 +254,28 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     sessions: Object.keys(sessions).length,
-    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES).length
+    supportedLanguages: Object.keys(SUPPORTED_LANGUAGES).length,
+    uptime: process.uptime()
   });
 });
 
 // 🔥 API ДЛЯ ПОЛУЧЕНИЯ ИНФОРМАЦИИ О ЯЗЫКАХ
 app.get('/api/languages', (req, res) => {
-  res.json(SUPPORTED_LANGUAGES);
+  const { category, include_snippets } = req.query;
+  
+  if (category && LANGUAGE_CATEGORIES[category]) {
+    const languages = {};
+    LANGUAGE_CATEGORIES[category].forEach(langKey => {
+      languages[langKey] = SUPPORTED_LANGUAGES[langKey];
+    });
+    res.json(languages);
+  } else {
+    res.json(SUPPORTED_LANGUAGES);
+  }
+});
+
+app.get('/api/languages/categories', (req, res) => {
+  res.json(LANGUAGE_CATEGORIES);
 });
 
 app.get('/api/languages/:language', (req, res) => {
@@ -143,38 +286,47 @@ app.get('/api/languages/:language', (req, res) => {
   res.json(SUPPORTED_LANGUAGES[language]);
 });
 
-// 🔥 ДОБАВИТЬ НОВЫЕ API ДЛЯ ИСТОРИИ
-app.get('/api/sessions/:sessionId/history', async (req, res) => {
-  try {
-    const session = await Session.findOne({
-      where: { sessionId: req.params.sessionId },
-      include: [SessionEvent, AIHint],
-      order: [[SessionEvent, 'timestamp', 'ASC']]
-    });
-    
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    
-    res.json(session);
-  } catch (error) {
-    console.error('❌ Failed to get session history:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+app.get('/api/languages/:language/snippets', (req, res) => {
+  const language = req.params.language;
+  const snippets = LANGUAGE_SNIPPETS[language] || {};
+  res.json(snippets);
 });
 
-app.get('/api/mentor/:mentorId/sessions', async (req, res) => {
-  try {
-    const mentorSessions = await Session.findAll({
-      where: { mentorId: req.params.mentorId },
-      order: [['createdAt', 'DESC']]
-    });
-    
-    res.json(mentorSessions);
-  } catch (error) {
-    console.error('❌ Failed to get mentor sessions:', error);
-    res.status(500).json({ error: 'Internal server error' });
+// 🔥 API ДЛЯ СТАТИСТИКИ И АНАЛИТИКИ
+app.get('/api/stats', (req, res) => {
+  const stats = {
+    totalSessions: Object.keys(sessions).length,
+    totalUsers: Object.values(sessions).reduce((acc, session) => acc + session.users.length, 0),
+    languagesInUse: [...new Set(Object.values(sessions).map(s => s.language))],
+    sessionsByLanguage: {},
+    activeSessions: Object.values(sessions).filter(s => s.lastActivity > Date.now() - 300000).length
+  };
+
+  // Подсчет сессий по языкам
+  Object.values(sessions).forEach(session => {
+    stats.sessionsByLanguage[session.language] = (stats.sessionsByLanguage[session.language] || 0) + 1;
+  });
+
+  res.json(stats);
+});
+
+// 🔥 ДОБАВИТЬ НОВЫЕ API ДЛЯ ИСТОРИИ (если есть база данных)
+app.get('/api/sessions/:sessionId/info', (req, res) => {
+  const session = sessions[req.params.sessionId];
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
   }
+  
+  res.json({
+    sessionId: req.params.sessionId,
+    userCount: session.users.length,
+    studentCanEdit: session.studentCanEdit,
+    language: session.language,
+    languageInfo: SUPPORTED_LANGUAGES[session.language],
+    codeLength: session.code?.length,
+    lastActivity: new Date(session.lastActivity).toISOString(),
+    sessionDuration: Date.now() - session.lastActivity
+  });
 });
 
 // 🔥 ДОБАВИТЬ API ДЛЯ ДИАГНОСТИКИ
@@ -184,13 +336,16 @@ app.get('/api/debug/sessions', (req, res) => {
     userCount: sessionData.users.length,
     studentCanEdit: sessionData.studentCanEdit,
     language: sessionData.language,
+    languageName: SUPPORTED_LANGUAGES[sessionData.language]?.name,
     codeLength: sessionData.code?.length,
-    users: sessionData.users
+    users: sessionData.users,
+    lastActivity: new Date(sessionData.lastActivity).toISOString()
   }));
   
   res.json({
     totalSessions: Object.keys(sessions).length,
     supportedLanguages: Object.keys(SUPPORTED_LANGUAGES),
+    languageCategories: LANGUAGE_CATEGORIES,
     sessions: sessionInfo
   });
 });
@@ -204,8 +359,21 @@ app.get('/api/debug/session/:sessionId', (req, res) => {
   res.json({
     sessionId: req.params.sessionId,
     ...session,
-    codePreview: session.code ? session.code.substring(0, 200) + '...' : 'empty'
+    codePreview: session.code ? session.code.substring(0, 200) + '...' : 'empty',
+    languageInfo: SUPPORTED_LANGUAGES[session.language]
   });
+});
+
+// 🔥 API ДЛЯ УПРАВЛЕНИЯ СЕССИЯМИ
+app.delete('/api/sessions/:sessionId', (req, res) => {
+  const sessionId = req.params.sessionId;
+  if (sessions[sessionId]) {
+    delete sessions[sessionId];
+    console.log(`🗑️ Session ${sessionId} deleted via API`);
+    res.json({ message: 'Session deleted successfully' });
+  } else {
+    res.status(404).json({ error: 'Session not found' });
+  }
 });
 
 // === WebSocket для синхронизации ===
@@ -230,48 +398,32 @@ io.on('connection', (socket) => {
         code: starterCode,
         studentCanEdit: false,
         language: normalizedLanguage,
-        lastActivity: Date.now()
+        lastActivity: Date.now(),
+        createdAt: Date.now(),
+        mentorId: socket.id
       };
       
-      try {
-        // 🔥 ПРОВЕРЯЕМ, ЧТО СЕССИИ ЕЩЁ НЕТ В БАЗЕ ДАННЫХ
-        const existingSession = await Session.findOne({ where: { sessionId } });
-        if (!existingSession) {
-          const session = await Session.create({
-            sessionId,
-            mentorId: socket.id,
-            language: normalizedLanguage,
-            initialCode: starterCode,
-            status: 'active'
-          });
-          
-          await SessionEvent.create({
-            type: 'session_start',
-            userId: socket.id,
-            data: { sessionId, language: normalizedLanguage },
-            SessionId: session.id
-          });
-          
-          console.log(`🆕 Created ${normalizedLanguage} session in database: ${sessionId}`);
-        } else {
-          console.log(`📁 Session already exists in database: ${sessionId}`);
-        }
-      } catch (error) {
-        console.error('❌ Failed to create session:', error);
-      }
+      console.log(`🆕 Created ${normalizedLanguage} session: ${sessionId}`);
     }
     
     sessions[sessionId].users.push(socket.id);
+    sessions[sessionId].lastActivity = Date.now();
     socket.join(sessionId);
     
     // 🔥 ОТПРАВИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ НОВОМУ ПОЛЬЗОВАТЕЛЮ
     socket.emit('code-update', sessions[sessionId].code);
     socket.emit('student-edit-permission', sessions[sessionId].studentCanEdit);
     socket.emit('language-changed', { 
-      language: sessions[sessionId].language
+      language: sessions[sessionId].language,
+      languageInfo: SUPPORTED_LANGUAGES[sessions[sessionId].language]
     });
     
-    socket.to(sessionId).emit('user-joined', { userId: socket.id });
+    // 🔥 УВЕДОМИТЬ ДРУГИХ УЧАСТНИКОВ О ПРИСОЕДИНЕНИИ
+    socket.to(sessionId).emit('user-joined', { 
+      userId: socket.id,
+      userCount: sessions[sessionId].users.length
+    });
+    
     console.log(`👥 Users in ${sessions[sessionId].language} session ${sessionId}:`, sessions[sessionId].users.length);
   });
 
@@ -292,7 +444,7 @@ io.on('connection', (socket) => {
   // 🔥 КРИТИЧЕСКИ ВАЖНО: ИСПРАВЛЕННЫЙ обработчик изменений кода от ученика
   socket.on('student-code-change', (data) => {
     console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
-    console.log(`📄 Code length: ${data.code?.length} chars`);
+    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[data.sessionId]?.language}`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
@@ -301,7 +453,7 @@ io.on('connection', (socket) => {
     }
     
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ (ВКЛЮЧАЯ МЕНТОРА)
-    io.to(data.sessionId).emit('code-update', data.code);
+    socket.to(data.sessionId).emit('code-update', data.code);
     
     // Логируем для отладки
     const preview = data.code ? data.code.substring(0, 50) + '...' : 'empty';
@@ -311,7 +463,7 @@ io.on('connection', (socket) => {
   // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК code-change
   socket.on('code-change', async (data) => {
     console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
-    console.log(`📄 Code length: ${data.code?.length} chars`);
+    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[data.sessionId]?.language}`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
     if (sessions[data.sessionId]) {
@@ -322,31 +474,9 @@ io.on('connection', (socket) => {
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ, КРОМЕ ОТПРАВИТЕЛЯ
     socket.to(data.sessionId).emit('code-update', data.code);
     
-    // 🔥 СОХРАНЕНИЕ ИЗМЕНЕНИЙ КОДА В БАЗУ ДАННЫХ
-    try {
-      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
-      if (session) {
-        await SessionEvent.create({
-          type: 'code_change',
-          userId: socket.id,
-          data: { 
-            codeLength: data.code?.length,
-            lines: data.code?.split('\n').length,
-            language: sessions[data.sessionId]?.language || 'javascript'
-          },
-          SessionId: session.id
-        });
-        
-        // Обновляем финальный код в сессии
-        await session.update({ finalCode: data.code });
-        
-        // Логируем для отладки (первые 100 символов)
-        const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
-        console.log(`📋 Code preview: ${preview}`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to save code change:', error);
-    }
+    // Логируем для отладки (первые 100 символов)
+    const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
+    console.log(`📋 Code preview: ${preview}`);
   });
 
   // 🔥 НОВЫЙ ОБРАБОТЧИК СМЕНЫ ЯЗЫКА ПРОГРАММИРОВАНИЯ
@@ -376,22 +506,9 @@ io.on('connection', (socket) => {
       // Уведомляем всех участников сессии о смене языка
       io.to(sessionId).emit('language-changed', {
         language: language,
-        code: sessions[sessionId].code
+        code: sessions[sessionId].code,
+        languageInfo: SUPPORTED_LANGUAGES[language]
       });
-      
-      // Обновляем в базе данных
-      try {
-        Session.findOne({ where: { sessionId } }).then(session => {
-          if (session) {
-            session.update({
-              language: language,
-              initialCode: sessions[sessionId].code
-            });
-          }
-        });
-      } catch (error) {
-        console.error('❌ Failed to update session language:', error);
-      }
     }
   });
 
@@ -404,7 +521,8 @@ io.on('connection', (socket) => {
       socket.emit('code-update', sessions[data.sessionId].code);
       socket.emit('student-edit-permission', sessions[data.sessionId].studentCanEdit);
       socket.emit('language-changed', { 
-        language: sessions[data.sessionId].language
+        language: sessions[data.sessionId].language,
+        languageInfo: SUPPORTED_LANGUAGES[sessions[data.sessionId].language]
       });
       console.log(`✅ Sync completed for ${socket.id}`);
     }
@@ -418,7 +536,8 @@ io.on('connection', (socket) => {
       code: sessions[data.sessionId].code,
       studentCanEdit: sessions[data.sessionId].studentCanEdit,
       language: sessions[data.sessionId].language,
-      userCount: sessions[data.sessionId].users.length
+      userCount: sessions[data.sessionId].users.length,
+      languageInfo: SUPPORTED_LANGUAGES[sessions[data.sessionId].language]
     } : null;
     
     socket.emit('session-state', sessionState);
@@ -427,29 +546,16 @@ io.on('connection', (socket) => {
   // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ AI-ПОДСКАЗОК
   socket.on('ai-hint-generated', async (data) => {
     console.log(`🧠 AI hint in ${data.sessionId} for ${data.language || 'javascript'}`);
+    console.log(`💡 Hint: ${data.hint}`);
     
-    try {
-      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
-      if (session) {
-        await AIHint.create({
-          hintText: data.hint,
-          confidence: data.confidence || 0.5,
-          language: data.language || 'javascript',
-          SessionId: session.id
-        });
-        
-        await SessionEvent.create({
-          type: 'ai_hint',
-          userId: 'ai_system',
-          data: { 
-            hint: data.hint,
-            language: data.language || 'javascript'
-          },
-          SessionId: session.id
-        });
-      }
-    } catch (error) {
-      console.error('❌ Failed to save AI hint:', error);
+    // Отправляем AI-подсказку всем участникам сессии
+    if (sessions[data.sessionId]) {
+      io.to(data.sessionId).emit('ai-hint', {
+        hint: data.hint,
+        confidence: data.confidence || 0.5,
+        language: data.language || 'javascript',
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
@@ -457,31 +563,30 @@ io.on('connection', (socket) => {
   socket.on('end-session', async (data) => {
     console.log(`🔚 Ending session: ${data.sessionId}`);
     
-    try {
-      const session = await Session.findOne({ where: { sessionId: data.sessionId } });
-      if (session) {
-        const duration = Math.floor((new Date() - session.createdAt) / 1000);
-        await session.update({ 
-          status: 'completed',
-          duration: duration
-        });
-        
-        await SessionEvent.create({
-          type: 'session_end',
-          userId: socket.id,
-          data: { 
-            reason: data.reason, 
-            duration,
-            language: sessions[data.sessionId]?.language || 'javascript'
-          },
-          SessionId: session.id
-        });
-        
-        console.log(`✅ Session ${data.sessionId} completed, duration: ${duration}s, language: ${sessions[data.sessionId]?.language}`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to end session:', error);
+    if (sessions[data.sessionId]) {
+      // Уведомляем всех участников о завершении сессии
+      io.to(data.sessionId).emit('session-ended', {
+        reason: data.reason,
+        endedBy: socket.id,
+        duration: Date.now() - sessions[data.sessionId].createdAt
+      });
+      
+      // Закрываем сессию
+      delete sessions[data.sessionId];
+      console.log(`✅ Session ${data.sessionId} ended by ${socket.id}`);
     }
+  });
+
+  // 🔥 ОБРАБОТЧИК ДЛЯ СНИППЕТОВ КОДА
+  socket.on('request-snippets', (data) => {
+    const { sessionId, language } = data;
+    const snippets = LANGUAGE_SNIPPETS[language] || {};
+    
+    console.log(`📋 Snippets requested for ${language} in session ${sessionId}`);
+    socket.emit('snippets-data', {
+      language: language,
+      snippets: snippets
+    });
   });
 
   socket.on('signal', (data) => {
@@ -501,13 +606,31 @@ io.on('connection', (socket) => {
   });
 
   socket.on('cursor-move', (data) => {
-    console.log(`🖱️ Cursor move by ${data.userId} in ${data.sessionId}`);
-    console.log(`📍 Position: line ${data.position?.lineNumber}, column ${data.position?.column}`);
-    
-    socket.to(data.sessionId).emit('cursor-update', { 
-      position: data.position, 
-      userId: data.userId 
-    });
+    // Дебаунсим события движения курсора для производительности
+    if (sessions[data.sessionId]) {
+      socket.to(data.sessionId).emit('cursor-update', { 
+        position: data.position, 
+        userId: data.userId 
+      });
+    }
+  });
+
+  // 🔥 ОБРАБОТЧИК ДЛЯ СТАТИСТИКИ И АНАЛИТИКИ
+  socket.on('get-session-stats', (data) => {
+    const session = sessions[data.sessionId];
+    if (session) {
+      const stats = {
+        sessionId: data.sessionId,
+        userCount: session.users.length,
+        language: session.language,
+        codeLength: session.code?.length,
+        studentCanEdit: session.studentCanEdit,
+        sessionAge: Date.now() - session.createdAt,
+        lastActivity: session.lastActivity
+      };
+      
+      socket.emit('session-stats', stats);
+    }
   });
 
   // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК DISCONNECT
@@ -515,39 +638,30 @@ io.on('connection', (socket) => {
     console.log('🔴 Отключился:', socket.id, 'Reason:', reason);
     
     if (socket.sessionId && sessions[socket.sessionId]) {
+      const session = sessions[socket.sessionId];
+      
       // 🔥 ПРАВИЛЬНОЕ УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ИЗ СЕССИИ
-      sessions[socket.sessionId].users = sessions[socket.sessionId].users.filter(
-        userId => userId !== socket.id
-      );
+      session.users = session.users.filter(userId => userId !== socket.id);
+      session.lastActivity = Date.now();
       
       // Уведомить других участников
-      socket.to(socket.sessionId).emit('user-left', { userId: socket.id });
+      socket.to(socket.sessionId).emit('user-left', { 
+        userId: socket.id,
+        userCount: session.users.length
+      });
+      
       socket.to(socket.sessionId).emit('user-audio-status', { 
         userId: socket.id, 
         active: false 
       });
       
-      console.log(`👥 Remaining users in ${socket.sessionId}:`, sessions[socket.sessionId].users.length);
+      console.log(`👥 Remaining users in ${socket.sessionId}:`, session.users.length);
       
       // 🔥 УДАЛЯЕМ СЕССИЮ ТОЛЬКО ЕСЛИ НЕТ ПОЛЬЗОВАТЕЛЕЙ
-      if (sessions[socket.sessionId].users.length === 0) {
-        // Сохраняем финальное состояние перед удалением
-        try {
-          const session = await Session.findOne({ 
-            where: { sessionId: socket.sessionId } 
-          });
-          if (session) {
-            await session.update({ 
-              status: 'completed',
-              duration: Math.floor((new Date() - session.createdAt) / 1000)
-            });
-          }
-        } catch (error) {
-          console.error('❌ Failed to complete session:', error);
-        }
-        
+      if (session.users.length === 0) {
+        const sessionDuration = Date.now() - session.createdAt;
+        console.log(`🗑️ Session ${socket.sessionId} deleted (no users). Duration: ${Math.floor(sessionDuration / 1000)}s, Language: ${session.language}`);
         delete sessions[socket.sessionId];
-        console.log(`🗑️ Session ${socket.sessionId} deleted (no users)`);
       }
     }
   });
@@ -560,11 +674,48 @@ io.on('connection', (socket) => {
 
 // 🔥 ПЕРИОДИЧЕСКАЯ ПРОВЕРКА СЕССИЙ (каждые 30 секунд)
 setInterval(() => {
+  const now = Date.now();
+  const inactiveSessions = [];
+  
+  Object.entries(sessions).forEach(([sessionId, sessionData]) => {
+    // Помечаем сессии без активности более 30 минут как неактивные
+    if (now - sessionData.lastActivity > 30 * 60 * 1000) {
+      inactiveSessions.push(sessionId);
+    }
+  });
+  
+  // Удаляем неактивные сессии
+  inactiveSessions.forEach(sessionId => {
+    console.log(`🧹 Removing inactive session: ${sessionId}`);
+    delete sessions[sessionId];
+  });
+  
+  if (inactiveSessions.length > 0) {
+    console.log(`🧹 Cleaned up ${inactiveSessions.length} inactive sessions`);
+  }
+  
+  // Логируем активные сессии
   console.log('🔄 Active sessions:', Object.keys(sessions).length);
   Object.entries(sessions).forEach(([sessionId, sessionData]) => {
-    console.log(`   📍 ${sessionId}: ${sessionData.users.length} users, language: ${sessionData.language}, code: ${sessionData.code?.length} chars, edit: ${sessionData.studentCanEdit}`);
+    console.log(`   📍 ${sessionId}: ${sessionData.users.length} users, ${sessionData.language}, code: ${sessionData.code?.length} chars, edit: ${sessionData.studentCanEdit}`);
   });
 }, 30000);
+
+// 🔥 ПЕРИОДИЧЕСКАЯ СТАТИСТИКА (каждые 5 минут)
+setInterval(() => {
+  const stats = {
+    totalSessions: Object.keys(sessions).length,
+    totalUsers: Object.values(sessions).reduce((acc, session) => acc + session.users.length, 0),
+    languagesInUse: [...new Set(Object.values(sessions).map(s => s.language))],
+    sessionsByLanguage: {}
+  };
+
+  Object.values(sessions).forEach(session => {
+    stats.sessionsByLanguage[session.language] = (stats.sessionsByLanguage[session.language] || 0) + 1;
+  });
+
+  console.log('📊 Server Statistics:', stats);
+}, 300000);
 
 // Глобальная обработка ошибок
 process.on('uncaughtException', (error) => {
@@ -583,6 +734,8 @@ console.log('PORT:', PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('CORS: enabled for all origins');
 console.log('🌍 Supported languages:', Object.keys(SUPPORTED_LANGUAGES).join(', '));
+console.log('📁 Language categories:', Object.keys(LANGUAGE_CATEGORIES).join(', '));
+console.log('📋 Languages with snippets:', Object.keys(LANGUAGE_SNIPPETS).join(', '));
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ SERVER STARTED on port ${PORT}`);
@@ -592,10 +745,11 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Debug endpoints available:`);
   console.log(`   📊 Sessions: http://0.0.0.0:${PORT}/api/debug/sessions`);
   console.log(`   🌍 Languages: http://0.0.0.0:${PORT}/api/languages`);
+  console.log(`   📈 Stats: http://0.0.0.0:${PORT}/api/stats`);
 }).on('error', (error) => {
   console.error('❌ FAILED to start server:', error);
   process.exit(1);
 });
 
 // Экспортируем для тестирования
-export { app, io, sessions, SUPPORTED_LANGUAGES };
+export { app, io, sessions, SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS };
