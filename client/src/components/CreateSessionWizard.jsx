@@ -1,6 +1,53 @@
 // client/src/components/CreateSessionWizard.jsx
 import React, { useState } from 'react';
-import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES } from '../languages.js';
+
+const SUPPORTED_LANGUAGES = {
+  javascript: {
+    name: 'JavaScript',
+    extension: '.js',
+    icon: '🟨',
+    starterCode: `function helloWorld() {\n  console.log("Hello, World!");\n  return "Welcome to CodeCollab!";\n}\n\nhelloWorld();`
+  },
+  python: {
+    name: 'Python',
+    extension: '.py',
+    icon: '🐍',
+    starterCode: `def hello_world():\n    print("Hello, World!")\n    return "Welcome to CodeCollab!"\n\nhello_world()`
+  },
+  java: {
+    name: 'Java',
+    extension: '.java',
+    icon: '☕',
+    starterCode: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}`
+  },
+  cpp: {
+    name: 'C++',
+    extension: '.cpp',
+    icon: '⚙️',
+    starterCode: `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}`
+  },
+  html: {
+    name: 'HTML',
+    extension: '.html',
+    icon: '🌐',
+    starterCode: `<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome</title>\n</head>\n<body>\n    <h1>Hello, World!</h1>\n</body>\n</html>`
+  },
+  css: {
+    name: 'CSS',
+    extension: '.css',
+    icon: '🎨',
+    starterCode: `body {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}`
+  }
+};
+
+const LANGUAGE_CATEGORIES = {
+  all: Object.keys(SUPPORTED_LANGUAGES),
+  web: ['javascript', 'html', 'css'],
+  backend: ['python', 'java', 'cpp'],
+  mobile: ['javascript', 'java'],
+  data: ['python'],
+  markup: ['html', 'css']
+};
 
 const CreateSessionWizard = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('javascript');
@@ -8,173 +55,140 @@ const CreateSessionWizard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ - ТОЛЬКО ЛОКАЛЬНОЕ СОЗДАНИЕ
-  const createSession = async () => {
+  // 🔥 ПОЛНОСТЬЮ КЛИЕНТСКАЯ ФУНКЦИЯ - БЕЗ API ВЫЗОВОВ
+  const createSession = () => {
     setIsCreating(true);
-    try {
-      console.log('🚀 Creating session locally:', selectedLanguage);
-      
-      // Генерируем ID сессии на клиенте
-      const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-      
-      // Небольшая задержка для индикатора загрузки
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+    
+    // Генерируем случайный ID сессии
+    const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    // Сохраняем данные сессии в localStorage
+    const sessionData = {
+      id: sessionId,
+      language: selectedLanguage,
+      type: sessionType,
+      createdAt: new Date().toISOString(),
+      starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode
+    };
+    
+    localStorage.setItem(`session_${sessionId}`, JSON.stringify(sessionData));
+    
+    // Имитируем загрузку для лучшего UX
+    setTimeout(() => {
       console.log('✅ Session created locally:', sessionId);
       
-      // Редирект на сессию
-      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&role=mentor&type=${sessionType}`;
-      
-    } catch (error) {
-      console.error('❌ Session creation failed:', error);
-      alert('Не удалось создать сессию. Пожалуйста, попробуйте еще раз.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  // Функция для быстрого создания сессии
-  const quickCreateSession = () => {
-    const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-    window.location.href = `/session/${sessionId}?language=${selectedLanguage}&role=mentor&type=${sessionType}`;
+      // Редирект на страницу сессии
+      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+    }, 800);
   };
 
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.95)',
-      padding: '40px',
-      borderRadius: '16px',
-      boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-      maxWidth: '800px',
-      margin: '0 auto'
+      background: 'white',
+      padding: '30px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      maxWidth: '900px',
+      margin: '20px auto',
+      border: '1px solid #e1e5e9'
     }}>
       <h2 style={{ 
-        color: '#1f2937', 
-        marginBottom: '30px',
+        color: '#1a1a1a', 
+        marginBottom: '25px',
         textAlign: 'center',
-        fontSize: '28px'
+        fontSize: '24px',
+        fontWeight: '600'
       }}>
-        🚀 Create New Coding Session
+        🚀 Создать новую сессию
       </h2>
 
-      {/* Шаг 1: Выбор типа сессии */}
-      <div style={{ marginBottom: '30px' }}>
-        <h3 style={{ color: '#374151', marginBottom: '15px', fontSize: '18px' }}>
-          1. Session Type
+      {/* Тип сессии */}
+      <div style={{ marginBottom: '25px' }}>
+        <h3 style={{ color: '#374151', marginBottom: '12px', fontSize: '16px', fontWeight: '500' }}>
+          1. Тип сессии
         </h3>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <button
-            onClick={() => setSessionType('mentoring')}
-            style={{
-              flex: 1,
-              padding: '20px',
-              background: sessionType === 'mentoring' ? '#3b82f6' : '#f3f4f6',
-              color: sessionType === 'mentoring' ? 'white' : '#374151',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              fontWeight: sessionType === 'mentoring' ? 'bold' : 'normal',
-              fontSize: '16px',
-              transition: 'all 0.2s'
-            }}
-          >
-            👨‍🏫 Mentoring
-            <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px' }}>
-              Teach programming concepts
-            </div>
-          </button>
-          <button
-            onClick={() => setSessionType('interview')}
-            style={{
-              flex: 1,
-              padding: '20px',
-              background: sessionType === 'interview' ? '#f59e0b' : '#f3f4f6',
-              color: sessionType === 'interview' ? 'white' : '#374151',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              fontWeight: sessionType === 'interview' ? 'bold' : 'normal',
-              fontSize: '16px',
-              transition: 'all 0.2s'
-            }}
-          >
-            💼 Technical Interview
-            <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px' }}>
-              Code review and assessment
-            </div>
-          </button>
-          <button
-            onClick={() => setSessionType('collaboration')}
-            style={{
-              flex: 1,
-              padding: '20px',
-              background: sessionType === 'collaboration' ? '#10b981' : '#f3f4f6',
-              color: sessionType === 'collaboration' ? 'white' : '#374151',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              fontWeight: sessionType === 'collaboration' ? 'bold' : 'normal',
-              fontSize: '16px',
-              transition: 'all 0.2s'
-            }}
-          >
-            👥 Pair Programming
-            <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px' }}>
-              Collaborative coding
-            </div>
-          </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'mentoring', label: '👨‍🏫 Обучение', desc: 'Обучение программированию' },
+            { id: 'interview', label: '💼 Собеседование', desc: 'Техническое интервью' },
+            { id: 'collaboration', label: '👥 Парное программирование', desc: 'Совместная работа' }
+          ].map(type => (
+            <button
+              key={type.id}
+              onClick={() => setSessionType(type.id)}
+              style={{
+                flex: '1',
+                minWidth: '150px',
+                padding: '15px',
+                background: sessionType === type.id ? 
+                  (type.id === 'mentoring' ? '#3b82f6' : 
+                   type.id === 'interview' ? '#f59e0b' : '#10b981') : '#f8fafc',
+                color: sessionType === type.id ? 'white' : '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: sessionType === type.id ? '600' : '400',
+                fontSize: '14px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div>{type.label}</div>
+              <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '4px' }}>
+                {type.desc}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Шаг 2: Выбор языка программирования */}
-      <div style={{ marginBottom: '40px' }}>
-        <h3 style={{ color: '#374151', marginBottom: '20px', fontSize: '18px' }}>
-          2. Programming Language
+      {/* Выбор языка */}
+      <div style={{ marginBottom: '30px' }}>
+        <h3 style={{ color: '#374151', marginBottom: '15px', fontSize: '16px', fontWeight: '500' }}>
+          2. Язык программирования
         </h3>
         
-        {/* Категории языков */}
-        <div style={{ marginBottom: '20px' }}>
+        {/* Категории */}
+        <div style={{ marginBottom: '15px' }}>
           <div style={{ 
             display: 'flex', 
-            gap: '10px', 
+            gap: '8px', 
             overflowX: 'auto',
-            paddingBottom: '10px',
-            marginBottom: '20px'
+            paddingBottom: '8px'
           }}>
             {Object.entries(LANGUAGE_CATEGORIES).map(([key]) => (
               <button
                 key={key}
                 onClick={() => setSelectedCategory(key)}
                 style={{
-                  padding: '8px 16px',
-                  background: selectedCategory === key ? '#3b82f6' : '#f3f4f6',
+                  padding: '6px 12px',
+                  background: selectedCategory === key ? '#3b82f6' : '#f8fafc',
                   color: selectedCategory === key ? 'white' : '#374151',
-                  border: 'none',
-                  borderRadius: '20px',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '16px',
                   cursor: 'pointer',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   whiteSpace: 'nowrap',
                   flexShrink: 0
                 }}
               >
-                {key === 'all' ? '🌍 All Languages' : 
-                 key === 'web' ? '🌐 Web Development' :
-                 key === 'backend' ? '⚙️ Backend' :
-                 key === 'mobile' ? '📱 Mobile' :
-                 key === 'data' ? '📊 Data & Formats' : '📝 Markup'}
+                {key === 'all' ? '🌍 Все' : 
+                 key === 'web' ? '🌐 Веб' :
+                 key === 'backend' ? '⚙️ Бэкенд' :
+                 key === 'mobile' ? '📱 Мобильные' :
+                 key === 'data' ? '📊 Данные' : '📝 Разметка'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Сетка языков с фильтрацией */}
+        {/* Сетка языков */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '15px',
-          maxHeight: '400px',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: '12px',
+          maxHeight: '300px',
           overflowY: 'auto',
-          padding: '10px'
+          padding: '8px'
         }}>
           {Object.entries(SUPPORTED_LANGUAGES)
             .filter(([key]) => selectedCategory === 'all' || LANGUAGE_CATEGORIES[selectedCategory]?.includes(key))
@@ -183,101 +197,69 @@ const CreateSessionWizard = () => {
                 key={key}
                 onClick={() => setSelectedLanguage(key)}
                 style={{
-                  padding: '20px',
+                  padding: '16px',
                   background: selectedLanguage === key ? '#3b82f6' : 'white',
-                  border: selectedLanguage === key ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                  borderRadius: '12px',
+                  border: selectedLanguage === key ? '2px solid #2563eb' : '1px solid #e5e7eb',
+                  borderRadius: '8px',
                   color: selectedLanguage === key ? 'white' : '#374151',
                   cursor: 'pointer',
                   textAlign: 'left',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
-                }}
-                onMouseOver={(e) => {
-                  if (selectedLanguage !== key) {
-                    e.target.style.background = '#f8fafc';
-                    e.target.style.borderColor = '#3b82f6';
-                    e.target.style.transform = 'translateY(-2px)';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (selectedLanguage !== key) {
-                    e.target.style.background = 'white';
-                    e.target.style.borderColor = '#e5e7eb';
-                    e.target.style.transform = 'translateY(0)';
-                  }
+                  transition: 'all 0.2s ease'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontSize: '24px' }}>{lang.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{lang.name}</div>
-                    <div style={{ fontSize: '12px', opacity: 0.8 }}>{lang.extension}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '20px' }}>{lang.icon}</span>
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{lang.name}</div>
+                    <div style={{ fontSize: '11px', opacity: 0.8 }}>{lang.extension}</div>
                   </div>
                 </div>
-                
-                {selectedLanguage === key && (
-                  <div style={{
-                    fontSize: '12px',
-                    background: 'rgba(255,255,255,0.2)',
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    alignSelf: 'flex-start'
-                  }}>
-                    ✅ Selected
-                  </div>
-                )}
               </button>
             ))
           }
         </div>
       </div>
 
-      {/* Шаг 3: Предпросмотр и создание */}
+      {/* Предпросмотр */}
       <div style={{
         background: '#f8fafc',
-        padding: '25px',
-        borderRadius: '12px',
-        border: '1px solid #e5e7eb'
+        padding: '20px',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb',
+        marginBottom: '20px'
       }}>
-        <h3 style={{ color: '#374151', marginBottom: '15px', fontSize: '18px' }}>
-          3. Session Preview
+        <h3 style={{ color: '#374151', marginBottom: '12px', fontSize: '16px', fontWeight: '500' }}>
+          3. Предпросмотр сессии
         </h3>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
-          <div>
-            <strong style={{ display: 'block', marginBottom: '5px' }}>Type:</strong> 
-            <span style={{ 
-              background: sessionType === 'mentoring' ? '#dbeafe' : 
-                         sessionType === 'interview' ? '#fef3c7' : '#d1fae5',
-              color: sessionType === 'mentoring' ? '#1e40af' : 
-                    sessionType === 'interview' ? '#92400e' : '#065f46',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              display: 'inline-block',
-              width: '100%',
-              textAlign: 'center'
-            }}>
-              {sessionType === 'mentoring' ? '👨‍🏫 Mentoring' : 
-               sessionType === 'interview' ? '💼 Technical Interview' : '👥 Pair Programming'}
-            </span>
-          </div>
-          
-          <div>
-            <strong style={{ display: 'block', marginBottom: '5px' }}>Language:</strong> 
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '120px' }}>
+            <strong style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>Тип:</strong> 
             <span style={{ 
               background: '#e0e7ff',
               color: '#3730a3',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontSize: '14px',
+              padding: '6px 10px',
+              borderRadius: '4px',
+              fontSize: '13px',
+              display: 'inline-block',
+              width: '100%'
+            }}>
+              {sessionType === 'mentoring' ? '👨‍🏫 Обучение' : 
+               sessionType === 'interview' ? '💼 Собеседование' : '👥 Парное программирование'}
+            </span>
+          </div>
+          
+          <div style={{ flex: 1, minWidth: '120px' }}>
+            <strong style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>Язык:</strong> 
+            <span style={{ 
+              background: '#e0e7ff',
+              color: '#3730a3',
+              padding: '6px 10px',
+              borderRadius: '4px',
+              fontSize: '13px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              justifyContent: 'center',
+              gap: '6px',
               width: '100%'
             }}>
               {SUPPORTED_LANGUAGES[selectedLanguage]?.icon}
@@ -286,90 +268,75 @@ const CreateSessionWizard = () => {
           </div>
         </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <strong style={{ display: 'block', marginBottom: '8px' }}>Default Code:</strong>
+        <div style={{ marginBottom: '15px' }}>
+          <strong style={{ display: 'block', marginBottom: '6px', fontSize: '13px' }}>Стартовый код:</strong>
           <div style={{
             background: '#1f2937',
             color: '#e5e7eb',
-            padding: '12px',
-            borderRadius: '6px',
-            fontSize: '12px',
+            padding: '10px',
+            borderRadius: '4px',
+            fontSize: '11px',
             fontFamily: 'monospace',
-            maxHeight: '80px',
+            maxHeight: '60px',
             overflow: 'auto',
-            lineHeight: '1.4'
+            lineHeight: '1.3'
           }}>
-            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').slice(0, 3).map((line, index) => (
+            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').slice(0, 2).map((line, index) => (
               <div key={index}>{line}</div>
             ))}
-            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').length > 3 && (
+            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').length > 2 && (
               <div style={{ color: '#9ca3af', fontStyle: 'italic' }}>...</div>
             )}
           </div>
         </div>
-
-        {/* Кнопка создания */}
-        <button
-          onClick={createSession}
-          disabled={isCreating}
-          style={{
-            width: '100%',
-            padding: '16px',
-            background: isCreating ? '#9ca3af' : 'linear-gradient(45deg, #3b82f6, #6366f1)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            cursor: isCreating ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s'
-          }}
-          onMouseOver={(e) => {
-            if (!isCreating) {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 10px 20px rgba(59, 130, 246, 0.3)';
-            }
-          }}
-          onMouseOut={(e) => {
-            if (!isCreating) {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = 'none';
-            }
-          }}
-        >
-          {isCreating ? (
-            <>
-              <span style={{ 
-                display: 'inline-block', 
-                animation: 'spin 1s linear infinite',
-                marginRight: '8px'
-              }}>
-                🔄
-              </span>
-              Creating Session...
-            </>
-          ) : (
-            <>
-              🚀 Create Session
-            </>
-          )}
-        </button>
-
-        <div style={{
-          marginTop: '15px',
-          padding: '12px',
-          background: '#d1fae5',
-          border: '1px solid #10b981',
-          borderRadius: '6px',
-          fontSize: '12px',
-          color: '#065f46',
-          textAlign: 'center'
-        }}>
-          ✅ <strong>Ready to go!</strong> Session will be created locally in your browser
-        </div>
       </div>
 
-      {/* Стили для анимации */}
+      {/* Кнопка создания */}
+      <button
+        onClick={createSession}
+        disabled={isCreating}
+        style={{
+          width: '100%',
+          padding: '14px',
+          background: isCreating ? '#9ca3af' : '#3b82f6',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          fontSize: '16px',
+          fontWeight: '600',
+          cursor: isCreating ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s ease'
+        }}
+      >
+        {isCreating ? (
+          <>
+            <span style={{ 
+              display: 'inline-block', 
+              animation: 'spin 1s linear infinite',
+              marginRight: '8px'
+            }}>
+              ⏳
+            </span>
+            Создание сессии...
+          </>
+        ) : (
+          '🚀 Создать сессию'
+        )}
+      </button>
+
+      <div style={{
+        marginTop: '12px',
+        padding: '10px',
+        background: '#d1fae5',
+        border: '1px solid #10b981',
+        borderRadius: '4px',
+        fontSize: '12px',
+        color: '#065f46',
+        textAlign: 'center'
+      }}>
+        ✅ <strong>Готово!</strong> Сессия будет создана локально в вашем браузере
+      </div>
+
       <style>
         {`
           @keyframes spin {
