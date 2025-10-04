@@ -166,7 +166,6 @@ export const LANGUAGE_SNIPPETS = {
   }
 };
 
-// Утилиты для работы с языками
 export const getLanguageByExtension = (extension) => {
   return Object.entries(SUPPORTED_LANGUAGES).find(([key, lang]) => 
     lang.extension === extension
