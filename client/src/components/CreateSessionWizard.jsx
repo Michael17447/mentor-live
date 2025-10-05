@@ -294,7 +294,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   alignItems: 'center',
                   gap: '8px',
                   minWidth: '160px',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  outline: 'none',
+                  boxShadow: 'none'
                 }}
                 onMouseOver={(e) => {
                   e.target.style.transform = 'translateY(-2px)';
@@ -302,6 +304,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 }}
                 onMouseOut={(e) => {
                   e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }}
+                onFocus={(e) => {
+                  e.target.style.outline = 'none';
                   e.target.style.boxShadow = 'none';
                 }}
               >
@@ -324,7 +330,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   alignItems: 'center',
                   gap: '8px',
                   minWidth: '160px',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  outline: 'none',
+                  boxShadow: 'none'
                 }}
                 onMouseOver={(e) => {
                   e.target.style.transform = 'translateY(-2px)';
@@ -332,6 +340,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 }}
                 onMouseOut={(e) => {
                   e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }}
+                onFocus={(e) => {
+                  e.target.style.outline = 'none';
                   e.target.style.boxShadow = 'none';
                 }}
               >
@@ -415,7 +427,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                     fontWeight: sessionType === type.id ? '600' : '400',
                     fontSize: '16px',
                     transition: 'all 0.3s ease',
-                    textAlign: 'left'
+                    textAlign: 'left',
+                    outline: 'none',
+                    boxShadow: 'none'
                   }}
                   onMouseOver={(e) => {
                     if (sessionType !== type.id) {
@@ -430,6 +444,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       e.target.style.borderColor = '#e5e7eb';
                       e.target.style.transform = 'translateY(0)';
                     }
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.outline = 'none';
+                    e.target.style.boxShadow = 'none';
                   }}
                 >
                   <div style={{ fontSize: '18px', marginBottom: '8px' }}>{type.label}</div>
@@ -494,7 +512,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       fontWeight: '500',
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      outline: 'none',
+                      boxShadow: 'none'
                     }}
                     onMouseOver={(e) => {
                       if (selectedCategory !== key) {
@@ -509,6 +529,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                         e.target.style.borderColor = '#e5e7eb';
                         e.target.style.transform = 'translateY(0)';
                       }
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.outline = 'none';
+                      e.target.style.boxShadow = 'none';
                     }}
                   >
                     {key === 'all' ? '🌍 Все языки' : 
@@ -552,7 +576,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       flexDirection: 'column',
                       gap: '12px',
                       position: 'relative',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      outline: 'none',
+                      boxShadow: 'none'
                     }}
                     onMouseOver={(e) => {
                       if (selectedLanguage !== key) {
@@ -569,6 +595,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                         e.target.style.transform = 'translateY(0)';
                         e.target.style.boxShadow = 'none';
                       }
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.outline = 'none';
+                      e.target.style.boxShadow = 'none';
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -760,7 +790,9 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 cursor: isCreating ? 'not-allowed' : 'pointer',
                 transition: 'all 0.3s ease',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                outline: 'none',
+                boxShadow: 'none'
               }}
               onMouseOver={(e) => {
                 if (!isCreating) {
@@ -773,6 +805,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   e.target.style.transform = 'translateY(0)';
                   e.target.style.boxShadow = 'none';
                 }
+              }}
+              onFocus={(e) => {
+                e.target.style.outline = 'none';
+                e.target.style.boxShadow = 'none';
               }}
             >
               {isCreating ? (
@@ -816,6 +852,19 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
+          }
+          
+          /* Убираем outline для всех кнопок */
+          button:focus, 
+          button:active {
+            outline: none !important;
+            box-shadow: none !important;
+          }
+          
+          /* Для accessibility оставляем outline только при клавиатурной навигации */
+          button:focus-visible {
+            outline: 2px solid #3b82f6 !important;
+            outline-offset: 2px !important;
           }
           
           /* Стили для скроллбара */
