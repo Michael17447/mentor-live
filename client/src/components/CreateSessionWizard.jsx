@@ -9,20 +9,36 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
   const [generatedSessionId, setGeneratedSessionId] = useState('');
   const [showSessionCreated, setShowSessionCreated] = useState(false);
 
-  // 🔥 ДОБАВЛЕНО: Динамическое добавление стилей
+  // 🔥 АГРЕССИВНОЕ УДАЛЕНИЕ ВСЕХ РАМОК
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      .session-wizard button:focus,
-      .session-wizard button:active,
-      .session-wizard button:hover,
-      .session-wizard button {
+      *:focus {
         outline: none !important;
         box-shadow: none !important;
+        border-color: inherit !important;
       }
       
-      .session-wizard *:focus {
+      button:focus,
+      button:active,
+      button:hover,
+      button {
         outline: none !important;
+        box-shadow: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      
+      /* Убираем все возможные рамки */
+      * {
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      
+      /* Для текстовых элементов */
+      span:focus,
+      div:focus,
+      p:focus {
+        outline: none !important;
+        box-shadow: none !important;
       }
     `;
     document.head.appendChild(style);
@@ -31,6 +47,15 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
       document.head.removeChild(style);
     };
   }, []);
+
+  // 🔥 ФУНКЦИЯ ДЛЯ ПРЕДОТВРАЩЕНИЯ FOCUS
+  const handleButtonClick = (callback) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Немедленно убираем фокус
+    e.target.blur();
+    if (callback) callback();
+  };
 
   const SUPPORTED_LANGUAGES = {
     javascript: {
@@ -224,7 +249,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
       boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
       maxWidth: '900px',
       margin: '20px auto',
-      backdropFilter: 'blur(10px)'
+      backdropFilter: 'blur(10px)',
+      outline: 'none'
     }}>
       <h2 style={{ 
         color: '#1f2937', 
@@ -235,7 +261,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
         background: 'linear-gradient(45deg, #3b82f6, #8b5cf6)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text'
+        backgroundClip: 'text',
+        outline: 'none'
       }}>
         {showSessionCreated ? '🎉 Сессия создана!' : '🚀 Создать новую сессию кодинга'}
       </h2>
@@ -246,15 +273,17 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           padding: '40px',
           borderRadius: '16px',
           border: '2px solid #0ea5e9',
-          textAlign: 'center'
+          textAlign: 'center',
+          outline: 'none'
         }}>
-          <div style={{ fontSize: '64px', marginBottom: '20px' }}>🎯</div>
+          <div style={{ fontSize: '64px', marginBottom: '20px', outline: 'none' }}>🎯</div>
           
           <h3 style={{ 
             color: '#0369a1', 
             marginBottom: '15px',
             fontSize: '24px',
-            fontWeight: '700'
+            fontWeight: '700',
+            outline: 'none'
           }}>
             Сессия успешно создана!
           </h3>
@@ -263,7 +292,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             color: '#475569',
             marginBottom: '30px',
             fontSize: '16px',
-            lineHeight: '1.6'
+            lineHeight: '1.6',
+            outline: 'none'
           }}>
             Поделитесь ID сессии с учениками, чтобы они могли присоединиться
           </p>
@@ -274,13 +304,15 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             background: 'white',
             border: '2px solid #0ea5e9',
             borderRadius: '12px',
-            textAlign: 'center'
+            textAlign: 'center',
+            outline: 'none'
           }}>
             <div style={{ 
               fontSize: '16px', 
               color: '#0369a1',
               marginBottom: '12px',
-              fontWeight: '600'
+              fontWeight: '600',
+              outline: 'none'
             }}>
               🆔 ID Вашей сессии:
             </div>
@@ -294,7 +326,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               border: '2px dashed #0ea5e9',
               fontFamily: 'monospace',
               letterSpacing: '1px',
-              marginBottom: '15px'
+              marginBottom: '15px',
+              outline: 'none'
             }}>
               {generatedSessionId}
             </div>
@@ -302,7 +335,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 id="copy-btn"
-                onClick={copySessionId}
+                onClick={handleButtonClick(copySessionId)}
                 style={{
                   padding: '12px 24px',
                   background: '#3b82f6',
@@ -319,26 +352,17 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   minWidth: '160px',
                   justifyContent: 'center',
                   outline: 'none',
-                  boxShadow: 'none'
+                  boxShadow: 'none',
+                  WebkitTapHighlightColor: 'transparent'
                 }}
-                onMouseOver={(e) => {
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.3)';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = 'none';
-                }}
-                onFocus={(e) => {
-                  e.target.style.outline = 'none';
-                  e.target.style.boxShadow = 'none';
-                }}
+                onMouseDown={(e) => e.target.blur()}
+                onTouchStart={(e) => e.target.blur()}
               >
                 📋 Скопировать ID
               </button>
               
               <button
-                onClick={proceedToSession}
+                onClick={handleButtonClick(proceedToSession)}
                 style={{
                   padding: '12px 24px',
                   background: 'linear-gradient(45deg, #10b981, #059669)',
@@ -355,20 +379,11 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   minWidth: '160px',
                   justifyContent: 'center',
                   outline: 'none',
-                  boxShadow: 'none'
+                  boxShadow: 'none',
+                  WebkitTapHighlightColor: 'transparent'
                 }}
-                onMouseOver={(e) => {
-                  e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 8px 20px rgba(16, 185, 129, 0.3)';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = 'none';
-                }}
-                onFocus={(e) => {
-                  e.target.style.outline = 'none';
-                  e.target.style.boxShadow = 'none';
-                }}
+                onMouseDown={(e) => e.target.blur()}
+                onTouchStart={(e) => e.target.blur()}
               >
                 🚀 Перейти в сессию
               </button>
@@ -383,7 +398,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             fontSize: '14px',
             color: '#065f46',
             textAlign: 'center',
-            fontWeight: '500'
+            fontWeight: '500',
+            outline: 'none'
           }}>
             💡 <strong>Совет:</strong> Скопируйте ID и отправьте ученикам перед переходом в сессию
           </div>
@@ -399,7 +415,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               fontWeight: '600',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px'
+              gap: '10px',
+              outline: 'none'
             }}>
               <span style={{
                 background: '#3b82f6',
@@ -410,7 +427,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '12px'
+                fontSize: '12px',
+                outline: 'none'
               }}>1</span>
               Тип сессии
             </h3>
@@ -437,7 +455,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               ].map(type => (
                 <button
                   key={type.id}
-                  onClick={() => setSessionType(type.id)}
+                  onClick={handleButtonClick(() => setSessionType(type.id))}
                   style={{
                     flex: '1',
                     minWidth: '200px',
@@ -452,7 +470,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                     transition: 'all 0.3s ease',
                     textAlign: 'left',
                     outline: 'none',
-                    boxShadow: 'none'
+                    boxShadow: 'none',
+                    WebkitTapHighlightColor: 'transparent'
                   }}
                   onMouseOver={(e) => {
                     if (sessionType !== type.id) {
@@ -468,16 +487,15 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       e.target.style.transform = 'translateY(0)';
                     }
                   }}
-                  onFocus={(e) => {
-                    e.target.style.outline = 'none';
-                    e.target.style.boxShadow = 'none';
-                  }}
+                  onMouseDown={(e) => e.target.blur()}
+                  onTouchStart={(e) => e.target.blur()}
                 >
-                  <div style={{ fontSize: '18px', marginBottom: '8px' }}>{type.label}</div>
+                  <div style={{ fontSize: '18px', marginBottom: '8px', outline: 'none' }}>{type.label}</div>
                   <div style={{ 
                     fontSize: '14px', 
                     opacity: sessionType === type.id ? 0.9 : 0.7,
-                    lineHeight: '1.4'
+                    lineHeight: '1.4',
+                    outline: 'none'
                   }}>
                     {type.desc}
                   </div>
@@ -495,7 +513,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               fontWeight: '600',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px'
+              gap: '10px',
+              outline: 'none'
             }}>
               <span style={{
                 background: '#3b82f6',
@@ -506,7 +525,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '12px'
+                fontSize: '12px',
+                outline: 'none'
               }}>2</span>
               Язык программирования
             </h3>
@@ -523,7 +543,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 {Object.entries(LANGUAGE_CATEGORIES).map(([key]) => (
                   <button
                     key={key}
-                    onClick={() => setSelectedCategory(key)}
+                    onClick={handleButtonClick(() => setSelectedCategory(key))}
                     style={{
                       padding: '10px 20px',
                       background: selectedCategory === key ? '#3b82f6' : '#f8fafc',
@@ -537,7 +557,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       flexShrink: 0,
                       transition: 'all 0.2s ease',
                       outline: 'none',
-                      boxShadow: 'none'
+                      boxShadow: 'none',
+                      WebkitTapHighlightColor: 'transparent'
                     }}
                     onMouseOver={(e) => {
                       if (selectedCategory !== key) {
@@ -553,10 +574,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                         e.target.style.transform = 'translateY(0)';
                       }
                     }}
-                    onFocus={(e) => {
-                      e.target.style.outline = 'none';
-                      e.target.style.boxShadow = 'none';
-                    }}
+                    onMouseDown={(e) => e.target.blur()}
+                    onTouchStart={(e) => e.target.blur()}
                   >
                     {key === 'all' ? '🌍 Все языки' : 
                      key === 'web' ? '🌐 Веб-разработка' :
@@ -585,7 +604,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 .map(([key, lang]) => (
                   <button
                     key={key}
-                    onClick={() => setSelectedLanguage(key)}
+                    onClick={handleButtonClick(() => setSelectedLanguage(key))}
                     style={{
                       padding: '20px',
                       background: selectedLanguage === key ? '#3b82f6' : 'white',
@@ -601,7 +620,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                       position: 'relative',
                       overflow: 'hidden',
                       outline: 'none',
-                      boxShadow: 'none'
+                      boxShadow: 'none',
+                      WebkitTapHighlightColor: 'transparent'
                     }}
                     onMouseOver={(e) => {
                       if (selectedLanguage !== key) {
@@ -619,25 +639,25 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                         e.target.style.boxShadow = 'none';
                       }
                     }}
-                    onFocus={(e) => {
-                      e.target.style.outline = 'none';
-                      e.target.style.boxShadow = 'none';
-                    }}
+                    onMouseDown={(e) => e.target.blur()}
+                    onTouchStart={(e) => e.target.blur()}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '28px' }}>{lang.icon}</span>
+                      <span style={{ fontSize: '28px', outline: 'none' }}>{lang.icon}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ 
                           fontWeight: '600', 
                           fontSize: '16px',
-                          textAlign: 'left'
+                          textAlign: 'left',
+                          outline: 'none'
                         }}>
                           {lang.name}
                         </div>
                         <div style={{ 
                           fontSize: '12px', 
                           opacity: selectedLanguage === key ? 0.8 : 0.6,
-                          textAlign: 'left'
+                          textAlign: 'left',
+                          outline: 'none'
                         }}>
                           {lang.extension}
                         </div>
@@ -654,7 +674,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                         padding: '4px 8px',
                         borderRadius: '6px',
                         fontSize: '10px',
-                        fontWeight: '600'
+                        fontWeight: '600',
+                        outline: 'none'
                       }}>
                         ✅ ВЫБРАНО
                       </div>
@@ -671,7 +692,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             padding: '25px',
             borderRadius: '12px',
             border: '1px solid #e5e7eb',
-            position: 'relative'
+            position: 'relative',
+            outline: 'none'
           }}>
             <h3 style={{ 
               color: '#374151', 
@@ -680,7 +702,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               fontWeight: '600',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px'
+              gap: '10px',
+              outline: 'none'
             }}>
               <span style={{
                 background: '#3b82f6',
@@ -691,7 +714,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '12px'
+                fontSize: '12px',
+                outline: 'none'
               }}>3</span>
               Предпросмотр сессии
             </h3>
@@ -707,7 +731,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   display: 'block', 
                   marginBottom: '8px', 
                   fontSize: '14px',
-                  color: '#6b7280'
+                  color: '#6b7280',
+                  outline: 'none'
                 }}>
                   Тип сессии:
                 </strong> 
@@ -725,7 +750,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   gap: '8px',
                   width: '100%',
                   textAlign: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  outline: 'none'
                 }}>
                   {sessionType === 'mentoring' ? '👨‍🏫 Обучение' : 
                    sessionType === 'interview' ? '💼 Техническое собеседование' : '👥 Парное программирование'}
@@ -737,7 +763,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   display: 'block', 
                   marginBottom: '8px', 
                   fontSize: '14px',
-                  color: '#6b7280'
+                  color: '#6b7280',
+                  outline: 'none'
                 }}>
                   Язык программирования:
                 </strong> 
@@ -752,7 +779,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   alignItems: 'center',
                   gap: '10px',
                   justifyContent: 'center',
-                  width: '100%'
+                  width: '100%',
+                  outline: 'none'
                 }}>
                   {SUPPORTED_LANGUAGES[selectedLanguage]?.icon}
                   {SUPPORTED_LANGUAGES[selectedLanguage]?.name}
@@ -765,7 +793,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 display: 'block', 
                 marginBottom: '10px', 
                 fontSize: '14px',
-                color: '#6b7280'
+                color: '#6b7280',
+                outline: 'none'
               }}>
                 Стартовый код:
               </strong>
@@ -779,19 +808,21 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 maxHeight: '120px',
                 overflow: 'auto',
                 lineHeight: '1.5',
-                border: '1px solid #374151'
+                border: '1px solid #374151',
+                outline: 'none'
               }}>
                 {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').map((line, index) => (
-                  <div key={index} style={{ display: 'flex' }}>
+                  <div key={index} style={{ display: 'flex', outline: 'none' }}>
                     <span style={{ 
                       color: '#6b7280', 
                       marginRight: '15px',
                       minWidth: '20px',
-                      textAlign: 'right'
+                      textAlign: 'right',
+                      outline: 'none'
                     }}>
                       {index + 1}
                     </span>
-                    <span style={{ flex: 1 }}>{line}</span>
+                    <span style={{ flex: 1, outline: 'none' }}>{line}</span>
                   </div>
                 ))}
               </div>
@@ -799,7 +830,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
 
             {/* Кнопка создания */}
             <button
-              onClick={createSession}
+              onClick={handleButtonClick(createSession)}
               disabled={isCreating}
               style={{
                 width: '100%',
@@ -815,7 +846,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 position: 'relative',
                 overflow: 'hidden',
                 outline: 'none',
-                boxShadow: 'none'
+                boxShadow: 'none',
+                WebkitTapHighlightColor: 'transparent'
               }}
               onMouseOver={(e) => {
                 if (!isCreating) {
@@ -829,10 +861,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                   e.target.style.boxShadow = 'none';
                 }
               }}
-              onFocus={(e) => {
-                e.target.style.outline = 'none';
-                e.target.style.boxShadow = 'none';
-              }}
+              onMouseDown={(e) => e.target.blur()}
+              onTouchStart={(e) => e.target.blur()}
             >
               {isCreating ? (
                 <>
@@ -862,7 +892,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               fontSize: '13px',
               color: '#065f46',
               textAlign: 'center',
-              fontWeight: '500'
+              fontWeight: '500',
+              outline: 'none'
             }}>
               ✅ <strong>Готово к созданию!</strong> Сессия будет создана локально в вашем браузере
             </div>
