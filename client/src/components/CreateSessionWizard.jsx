@@ -1,5 +1,5 @@
 // client/src/components/CreateSessionWizard.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CreateSessionWizard = ({ onSessionCreated }) => {
   const [selectedLanguage, setSelectedLanguage] = useState('javascript');
@@ -8,6 +8,29 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [generatedSessionId, setGeneratedSessionId] = useState('');
   const [showSessionCreated, setShowSessionCreated] = useState(false);
+
+  // 🔥 ДОБАВЛЕНО: Динамическое добавление стилей
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .session-wizard button:focus,
+      .session-wizard button:active,
+      .session-wizard button:hover,
+      .session-wizard button {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      
+      .session-wizard *:focus {
+        outline: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   const SUPPORTED_LANGUAGES = {
     javascript: {
@@ -194,7 +217,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
   };
 
   return (
-    <div style={{
+    <div className="session-wizard" style={{
       background: 'rgba(255, 255, 255, 0.95)',
       padding: '40px',
       borderRadius: '16px',
@@ -852,19 +875,6 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
-          }
-          
-          /* Убираем outline для всех кнопок */
-          button:focus, 
-          button:active {
-            outline: none !important;
-            box-shadow: none !important;
-          }
-          
-          /* Для accessibility оставляем outline только при клавиатурной навигации */
-          button:focus-visible {
-            outline: 2px solid #3b82f6 !important;
-            outline-offset: 2px !important;
           }
           
           /* Стили для скроллбара */
