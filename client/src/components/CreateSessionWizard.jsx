@@ -6,100 +6,129 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
   const [sessionType, setSessionType] = useState('mentoring');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [generatedSessionId, setGeneratedSessionId] = useState('');
 
   const SUPPORTED_LANGUAGES = {
     javascript: {
       name: 'JavaScript',
       extension: '.js',
       icon: '🟨',
-      starterCode: `function helloWorld() {\n  console.log("Hello, World!");\n  return "Welcome to CodeCollab!";\n}\n\nhelloWorld();`
+      starterCode: `// Welcome to JavaScript\nconsole.log('Hello World!');\n\nfunction example() {\n  return 'This is JavaScript';\n}`
+    },
+    typescript: {
+      name: 'TypeScript', 
+      extension: '.ts',
+      icon: '🔷',
+      starterCode: `// Welcome to TypeScript\nconst message: string = 'Hello World!';\nconsole.log(message);\n\ninterface Example {\n  name: string;\n  value: number;\n}`
     },
     python: {
       name: 'Python',
-      extension: '.py',
+      extension: '.py', 
       icon: '🐍',
-      starterCode: `def hello_world():\n    print("Hello, World!")\n    return "Welcome to CodeCollab!"\n\nhello_world()`
+      starterCode: `# Welcome to Python\nprint('Hello World!')\n\ndef example_function():\n    return "This is Python"`
     },
     java: {
       name: 'Java',
       extension: '.java',
       icon: '☕',
-      starterCode: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}`
+      starterCode: `// Welcome to Java\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello World!");\n    }\n    \n    public static String example() {\n        return "This is Java";\n    }\n}`
     },
     cpp: {
       name: 'C++',
       extension: '.cpp',
-      icon: '⚙️',
-      starterCode: `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello, World!" << endl;\n    return 0;\n}`
+      icon: '⚡',
+      starterCode: `// Welcome to C++\n#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello World!" << endl;\n    return 0;\n}\n\nstring example() {\n    return "This is C++";\n}`
     },
-    html: {
-      name: 'HTML',
-      extension: '.html',
-      icon: '🌐',
-      starterCode: `<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome</title>\n</head>\n<body>\n    <h1>Hello, World!</h1>\n</body>\n</html>`
-    },
-    css: {
-      name: 'CSS',
-      extension: '.css',
-      icon: '🎨',
-      starterCode: `body {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}`
-    },
-    typescript: {
-      name: 'TypeScript',
-      extension: '.ts',
-      icon: '🔷',
-      starterCode: `function helloWorld(): string {\n  console.log("Hello, World!");\n  return "Welcome to CodeCollab!";\n}\n\nhelloWorld();`
-    },
-    ruby: {
-      name: 'Ruby',
-      extension: '.rb',
-      icon: '💎',
-      starterCode: `def hello_world\n  puts "Hello, World!"\n  "Welcome to CodeCollab!"\nend\n\nhello_world`
+    csharp: {
+      name: 'C#',
+      extension: '.cs',
+      icon: '🔶',
+      starterCode: `// Welcome to C#\nusing System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello World!");\n    }\n    \n    static string Example() {\n        return "This is C#";\n    }\n}`
     },
     php: {
       name: 'PHP',
       extension: '.php',
       icon: '🐘',
-      starterCode: `<?php\nfunction helloWorld() {\n    echo "Hello, World!";\n    return "Welcome to CodeCollab!";\n}\n\nhelloWorld();\n?>`
+      starterCode: `<?php\n// Welcome to PHP\necho 'Hello World!';\n\nfunction example() {\n    return "This is PHP";\n}\n?>`
+    },
+    ruby: {
+      name: 'Ruby', 
+      extension: '.rb',
+      icon: '💎',
+      starterCode: `# Welcome to Ruby\nputs 'Hello World!'\n\ndef example\n  "This is Ruby"\nend`
     },
     go: {
       name: 'Go',
       extension: '.go',
-      icon: '🐹',
-      starterCode: `package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}`
+      icon: '🔵',
+      starterCode: `// Welcome to Go\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello World!")\n}\n\nfunc example() string {\n    return "This is Go"\n}`
     },
     rust: {
       name: 'Rust',
-      extension: '.rs',
+      extension: '.rs', 
       icon: '🦀',
-      starterCode: `fn main() {\n    println!("Hello, World!");\n}`
+      starterCode: `// Welcome to Rust\nfn main() {\n    println!("Hello World!");\n}\n\nfn example() -> &'static str {\n    "This is Rust"\n}`
+    },
+    swift: {
+      name: 'Swift',
+      extension: '.swift',
+      icon: '🐦',
+      starterCode: `// Welcome to Swift\nimport Foundation\nprint("Hello World!")\n\nfunc example() -> String {\n    return "This is Swift"\n}`
+    },
+    kotlin: {
+      name: 'Kotlin',
+      extension: '.kt',
+      icon: '🔸',
+      starterCode: `// Welcome to Kotlin\nfun main() {\n    println("Hello World!")\n}\n\nfun example(): String {\n    return "This is Kotlin"\n}`
+    },
+    html: {
+      name: 'HTML',
+      extension: '.html',
+      icon: '🌐',
+      starterCode: `<!DOCTYPE html>\n<html>\n<head>\n    <title>Welcome to HTML</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            margin: 40px;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World!</h1>\n    <p>This is HTML</p>\n</body>\n</html>`
+    },
+    css: {
+      name: 'CSS',
+      extension: '.css', 
+      icon: '🎨',
+      starterCode: `/* Welcome to CSS */\nbody {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n    background-color: #f0f0f0;\n}\n\n.header {\n    color: #333;\n    font-size: 24px;\n}\n\n.container {\n    max-width: 1200px;\n    margin: 0 auto;\n}`
     },
     sql: {
       name: 'SQL',
       extension: '.sql',
       icon: '🗃️',
-      starterCode: `-- Welcome to SQL session\nSELECT 'Hello, World!' AS greeting;\n\n-- Create example table\nCREATE TABLE users (\n    id INT PRIMARY KEY,\n    name VARCHAR(50)\n);`
+      starterCode: `-- Welcome to SQL\n-- Create a simple table\nCREATE TABLE users (\n    id INT PRIMARY KEY,\n    name VARCHAR(50),\n    email VARCHAR(100)\n);\n\n-- Insert sample data\nINSERT INTO users (id, name, email) VALUES \n(1, 'John Doe', 'john@example.com'),\n(2, 'Jane Smith', 'jane@example.com');\n\n-- Query data\nSELECT * FROM users;`
+    },
+    json: {
+      name: 'JSON',
+      extension: '.json',
+      icon: '📄',
+      starterCode: `{\n  "welcome": "Hello World!",\n  "language": "JSON",\n  "features": [\n    "Easy to read",\n    "Lightweight",\n    "Language independent"\n  ],\n  "example": {\n    "name": "CodeMentor",\n    "version": "1.0"\n  }\n}`
+    },
+    markdown: {
+      name: 'Markdown', 
+      extension: '.md',
+      icon: '📝',
+      starterCode: `# Welcome to Markdown\n\nHello World!\n\n## Features\n\n- **Easy** to write\n- **Readable** format\n- Supports *emphasis*\n\n## Code Example\n\n\`\`\`javascript\nconsole.log('Hello World!');\n\`\`\`\n\n## Lists\n\n1. First item\n2. Second item\n3. Third item`
     }
   };
 
   const LANGUAGE_CATEGORIES = {
-    all: Object.keys(SUPPORTED_LANGUAGES),
-    web: ['javascript', 'typescript', 'html', 'css', 'php'],
-    backend: ['python', 'java', 'cpp', 'go', 'rust', 'ruby'],
-    mobile: ['javascript', 'java', 'typescript'],
-    data: ['python', 'sql'],
-    markup: ['html', 'css']
+    all: "All Languages",
+    web: ["javascript", "typescript", "html", "css"],
+    backend: ["python", "java", "cpp", "csharp", "php", "ruby", "go", "rust"],
+    mobile: ["swift", "kotlin"],
+    data: ["sql", "json"],
+    markup: ["markdown"]
   };
 
-  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ - ИСПОЛЬЗУЕТ CALLBACK
   const createSession = () => {
     console.log('🔄 Starting session creation...');
     setIsCreating(true);
 
-    // Генерируем случайный ID сессии
-    const sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
+    setGeneratedSessionId(sessionId);
     
-    // Сохраняем данные сессии в localStorage
     const sessionData = {
       id: sessionId,
       language: selectedLanguage,
@@ -112,31 +141,33 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
     localStorage.setItem(`session_${sessionId}`, JSON.stringify(sessionData));
     console.log('✅ Session data saved to localStorage:', sessionId);
     
-    // Имитируем загрузку для лучшего UX
     setTimeout(() => {
       console.log('🎯 Calling onSessionCreated callback:', { sessionId, selectedLanguage, role: 'mentor' });
       
-      // 🔥 ВЫЗЫВАЕМ CALLBACK ВМЕСТО РЕДИРЕКТА
       if (onSessionCreated) {
         onSessionCreated(sessionId, selectedLanguage, 'mentor');
       } else {
         console.error('❌ onSessionCreated callback is not provided!');
-        // Fallback: прямой редирект если callback не передан
         window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
       }
       
       setIsCreating(false);
-    }, 800);
+    }, 1500);
   };
 
-  // Функция для быстрого создания сессии
-  const quickCreateSession = () => {
-    const sessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
-    
-    if (onSessionCreated) {
-      onSessionCreated(sessionId, selectedLanguage, 'mentor');
-    } else {
-      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+  const copySessionId = () => {
+    if (generatedSessionId) {
+      navigator.clipboard.writeText(generatedSessionId).then(() => {
+        alert('✅ ID сессии скопирован в буфер обмена!');
+      }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = generatedSessionId;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('✅ ID сессии скопирован!');
+      });
     }
   };
 
@@ -288,7 +319,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             paddingBottom: '15px',
             marginBottom: '20px'
           }}>
-            {Object.entries(LANGUAGE_CATEGORIES).map(([key]) => (
+            {Object.entries(LANGUAGE_CATEGORIES).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setSelectedCategory(key)}
@@ -502,6 +533,72 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           </div>
         </div>
 
+        {/* 🔥 БЛОК ОТОБРАЖЕНИЯ ID СЕССИИ */}
+        {generatedSessionId && (
+          <div style={{ 
+            marginBottom: '20px',
+            padding: '15px',
+            background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+            border: '2px solid #0ea5e9',
+            borderRadius: '10px',
+            textAlign: 'center'
+          }}>
+            <div style={{ 
+              fontSize: '14px', 
+              color: '#0369a1',
+              marginBottom: '8px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              🆔 <span>ID Вашей сессии:</span>
+            </div>
+            <div 
+              onClick={copySessionId}
+              style={{
+                fontSize: '16px',
+                fontWeight: 'bold',
+                color: '#0c4a6e',
+                background: 'white',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '2px dashed #0ea5e9',
+                fontFamily: 'monospace',
+                letterSpacing: '1px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                marginBottom: '8px'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = '#f0f9ff';
+                e.target.style.borderColor = '#0369a1';
+                e.target.style.transform = 'scale(1.02)';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = 'white';
+                e.target.style.borderColor = '#0ea5e9';
+                e.target.style.transform = 'scale(1)';
+              }}
+              title="Нажмите чтобы скопировать ID"
+            >
+              {generatedSessionId}
+            </div>
+            <div style={{
+              fontSize: '12px',
+              color: '#0284c7',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}>
+              📋 <span>Нажмите на ID чтобы скопировать и поделиться с учениками</span>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginBottom: '25px' }}>
           <strong style={{ 
             display: 'block', 
@@ -523,7 +620,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             lineHeight: '1.5',
             border: '1px solid #374151'
           }}>
-            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').map((line, index) => (
+            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').slice(0, 5).map((line, index) => (
               <div key={index} style={{ display: 'flex' }}>
                 <span style={{ 
                   color: '#6b7280', 
@@ -536,6 +633,11 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
                 <span style={{ flex: 1 }}>{line}</span>
               </div>
             ))}
+            {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').length > 5 && (
+              <div style={{ color: '#9ca3af', fontStyle: 'italic', textAlign: 'center', marginTop: '8px' }}>
+                ... и ещё {SUPPORTED_LANGUAGES[selectedLanguage]?.starterCode.split('\n').length - 5} строк
+              </div>
+            )}
           </div>
         </div>
 
@@ -589,7 +691,6 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           )}
         </button>
 
-        {/* Информационное сообщение */}
         <div style={{
           marginTop: '15px',
           padding: '12px 16px',
@@ -605,32 +706,11 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
         </div>
       </div>
 
-      {/* Стили для анимации */}
       <style>
         {`
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
-          }
-          
-          /* Стили для скроллбара */
-          ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          
-          ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-          }
-          
-          ::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 10px;
-          }
-          
-          ::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
           }
         `}
       </style>
