@@ -1,7 +1,7 @@
 // client/src/components/CreateSessionWizard.jsx
 import React, { useState } from 'react';
 
-const CreateSessionWizard = () => {
+const CreateSessionWizard = ({ onSessionCreated }) => {
   const [selectedLanguage, setSelectedLanguage] = useState('javascript');
   const [sessionType, setSessionType] = useState('mentoring');
   const [isCreating, setIsCreating] = useState(false);
@@ -91,7 +91,7 @@ const CreateSessionWizard = () => {
     markup: ['html', 'css']
   };
 
-  // 🔥 ПОЛНОСТЬЮ КЛИЕНТСКАЯ ФУНКЦИЯ - БЕЗ API ВЫЗОВОВ
+  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ - ИСПОЛЬЗУЕТ CALLBACK
   const createSession = () => {
     console.log('🔄 Starting session creation...');
     setIsCreating(true);
@@ -114,17 +114,30 @@ const CreateSessionWizard = () => {
     
     // Имитируем загрузку для лучшего UX
     setTimeout(() => {
-      console.log('🎯 Redirecting to session:', sessionId);
+      console.log('🎯 Calling onSessionCreated callback:', { sessionId, selectedLanguage, role: 'mentor' });
       
-      // 🔥 Редирект на страницу сессии
-      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+      // 🔥 ВЫЗЫВАЕМ CALLBACK ВМЕСТО РЕДИРЕКТА
+      if (onSessionCreated) {
+        onSessionCreated(sessionId, selectedLanguage, 'mentor');
+      } else {
+        console.error('❌ onSessionCreated callback is not provided!');
+        // Fallback: прямой редирект если callback не передан
+        window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+      }
+      
+      setIsCreating(false);
     }, 800);
   };
 
   // Функция для быстрого создания сессии
   const quickCreateSession = () => {
     const sessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
-    window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+    
+    if (onSessionCreated) {
+      onSessionCreated(sessionId, selectedLanguage, 'mentor');
+    } else {
+      window.location.href = `/session/${sessionId}?language=${selectedLanguage}&type=${sessionType}&role=mentor`;
+    }
   };
 
   return (
