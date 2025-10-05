@@ -5,6 +5,8 @@ import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './languages.js';
 import LanguageSelector from './components/LanguageSelector.jsx';
+import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
+import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
@@ -93,6 +95,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [showSnippetsPanel, setShowSnippetsPanel] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   
+  // 🔥 НОВЫЕ СОСТОЯНИЯ ДЛЯ LIVE CODE ANALYSIS
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [codeAnalysis, setCodeAnalysis] = useState(null);
+  
   const editorRef = useRef(null);
   const socketRef = useRef(null);
   const peerRef = useRef(null);
@@ -102,6 +108,19 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const lastCodeUpdateRef = useRef(Date.now());
   const reconnectAttemptsRef = useRef(0);
   const isInitialMountRef = useRef(true);
+  const analysisTimeoutRef = useRef(null);
+
+  // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА КОДА
+  const analyzeCode = (code) => {
+    if (analysisTimeoutRef.current) {
+      clearTimeout(analysisTimeoutRef.current);
+    }
+    
+    analysisTimeoutRef.current = setTimeout(() => {
+      const analysis = SimpleCodeAnalyzer.analyze(code, currentLanguage);
+      setCodeAnalysis(analysis);
+    }, 1000);
+  };
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -137,6 +156,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     setCode(value);
     lastCodeUpdateRef.current = Date.now();
     
+    // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА
+    analyzeCode(value);
+    
     // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
     if (isMentor && socketRef.current?.connected) {
       socketRef.current.emit('code-change', { sessionId, code: value });
@@ -149,7 +171,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         studentId: userId 
       });
     }
-  }, [isMentor, studentCanEdit, sessionId, userId]);
+  }, [isMentor, studentCanEdit, sessionId, userId, currentLanguage]);
 
   // 🔥 ОБРАБОТЧИК ДВИЖЕНИЯ КУРСОРА С ДЕБАУНСОМ
   const handleCursorMove = useCallback((e) => {
@@ -193,6 +215,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     const newStarterCode = SUPPORTED_LANGUAGES[newLanguage].starterCode;
     setCode(newStarterCode);
     lastCodeUpdateRef.current = Date.now();
+    
+    // 🔥 ЗАПУСКАЕМ АНАЛИЗ ДЛЯ НОВОГО КОДА
+    analyzeCode(newStarterCode);
     
     // Отправляем изменение языка на сервер
     if (socketRef.current?.connected) {
@@ -325,6 +350,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (timeSinceLastUpdate > 50) {
         console.log('🔄 Применение удаленного обновления кода');
         setCode(newCode);
+        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ ПОЛУЧЕНИИ КОДА ОТ СЕРВЕРА
+        analyzeCode(newCode);
       } else {
         console.log('⏸️ Пропуск обновления кода (слишком недавнее локальное изменение)');
       }
@@ -336,6 +363,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       setCurrentLanguage(data.language);
       if (data.code) {
         setCode(data.code);
+        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ СМЕНЕ ЯЗЫКА
+        analyzeCode(data.code);
       }
     });
 
@@ -365,6 +394,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         // 🔥 МЕНТОР ВИДЕТ ИЗМЕНЕНИЯ УЧЕНИКА
         setCode(newCode);
         lastCodeUpdateRef.current = Date.now();
+        // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА УЧЕНИКА
+        analyzeCode(newCode);
       }
     });
 
@@ -375,6 +406,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         setCode(state.code);
         setStudentCanEdit(state.studentCanEdit);
         setCurrentLanguage(state.language);
+        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ ПОЛУЧЕНИИ СОСТОЯНИЯ СЕССИИ
+        analyzeCode(state.code);
       }
     });
 
@@ -437,6 +470,9 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (aiInterval) clearInterval(aiInterval);
       if (cursorTimeoutRef.current) {
         clearTimeout(cursorTimeoutRef.current);
+      }
+      if (analysisTimeoutRef.current) {
+        clearTimeout(analysisTimeoutRef.current);
       }
     };
   }, [sessionId, isMentor, code, connectSocket, currentLanguage]);
@@ -546,6 +582,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       language: currentLanguage,
       languageName: languageInfo?.name,
       extension: languageInfo?.extension,
+      codeAnalysis: codeAnalysis, // 🔥 ДОБАВЛЯЕМ АНАЛИЗ В ЭКСПОРТ
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -666,32 +703,69 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             {!isConnected && <span>🔄</span>}
           </div>
 
-          {/* 🔥 ПРОСТОЙ СЕЛЕКТОР ЯЗЫКА */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>Язык:</span>
-            <select
-              value={currentLanguage}
-              onChange={(e) => changeLanguage(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #4b5563',
-                background: '#374151',
+          {/* 🔥 КНОПКА АНАЛИЗА КОДА */}
+          <button
+            onClick={() => setShowAnalysis(!showAnalysis)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: showAnalysis ? '#8b5cf6' : '#374151',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Live Code Analysis"
+          >
+            🔍 Analysis
+            {codeAnalysis && codeAnalysis.warnings.length > 0 && (
+              <span style={{
+                background: '#ef4444',
                 color: 'white',
-                fontSize: '14px',
-                minWidth: '150px',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="javascript">🟨 JavaScript</option>
-              <option value="python">🐍 Python</option>
-              <option value="java">☕ Java</option>
-              <option value="cpp">⚡ C++</option>
-              <option value="html">🌐 HTML</option>
-              <option value="css">🎨 CSS</option>
-              <option value="typescript">🔷 TypeScript</option>
-            </select>
-          </div>
+                borderRadius: '8px',
+                padding: '2px 6px',
+                fontSize: '10px',
+                minWidth: '16px'
+              }}>
+                {codeAnalysis.warnings.length}
+              </span>
+            )}
+          </button>
+
+          {/* 🔥 ИНДИКАТОР СЛОЖНОСТИ */}
+          {codeAnalysis && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '6px',
+              border: `1px solid ${
+                codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
+                codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
+              }`
+            }}>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
+                           codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
+              }} />
+              <span style={{ 
+                color: 'white', 
+                fontSize: '11px',
+                fontWeight: '500'
+              }}>
+                Complexity: {codeAnalysis.complexity.level}
+              </span>
+            </div>
+          )}
 
           {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
           <div style={{ position: 'relative' }}>
@@ -1124,6 +1198,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           }}
         />
       </div>
+
+      {/* 🔥 ПАНЕЛЬ LIVE CODE ANALYSIS */}
+      <CodeAnalysisPanel
+        analysis={codeAnalysis}
+        isVisible={showAnalysis}
+        onClose={() => setShowAnalysis(false)}
+      />
     </div>
   );
 }
