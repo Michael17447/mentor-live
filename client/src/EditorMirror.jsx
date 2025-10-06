@@ -110,17 +110,35 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const isInitialMountRef = useRef(true);
   const analysisTimeoutRef = useRef(null);
 
-  // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА КОДА
-  const analyzeCode = (code) => {
+  // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА КОДА (ИСПРАВЛЕННАЯ)
+  const analyzeCode = useCallback((codeToAnalyze) => {
     if (analysisTimeoutRef.current) {
       clearTimeout(analysisTimeoutRef.current);
     }
     
     analysisTimeoutRef.current = setTimeout(() => {
-      const analysis = SimpleCodeAnalyzer.analyze(code, currentLanguage);
-      setCodeAnalysis(analysis);
+      try {
+        const analysis = SimpleCodeAnalyzer.analyze(codeToAnalyze, currentLanguage);
+        setCodeAnalysis(analysis);
+      } catch (error) {
+        console.error('Code analysis error:', error);
+        setCodeAnalysis({
+          complexity: { score: 0, level: 'low' },
+          warnings: [],
+          metrics: { totalLines: 0, codeLines: 0, commentLines: 0, blankLines: 0, commentRatio: 0 },
+          suggestions: [],
+          timestamp: new Date().toISOString()
+        });
+      }
     }, 1000);
-  };
+  }, [currentLanguage]);
+
+  // 🔥 АНАЛИЗ ПРИ ПЕРВОНАЧАЛЬНОЙ ЗАГРУЗКЕ
+  useEffect(() => {
+    if (code) {
+      analyzeCode(code);
+    }
+  }, [code, analyzeCode]);
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -171,7 +189,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         studentId: userId 
       });
     }
-  }, [isMentor, studentCanEdit, sessionId, userId, currentLanguage]);
+  }, [isMentor, studentCanEdit, sessionId, userId, analyzeCode]);
 
   // 🔥 ОБРАБОТЧИК ДВИЖЕНИЯ КУРСОРА С ДЕБАУНСОМ
   const handleCursorMove = useCallback((e) => {
@@ -227,7 +245,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         code: newStarterCode
       });
     }
-  }, [sessionId]);
+  }, [sessionId, analyzeCode]);
 
   // 🔥 ВСТАВКА СНИППЕТА КОДА
   const insertSnippet = useCallback((snippet) => {
@@ -426,7 +444,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     return socket;
-  }, [sessionId, userId, logEvent, isMentor, currentLanguage]);
+  }, [sessionId, userId, logEvent, isMentor, currentLanguage, analyzeCode]);
 
   // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {
@@ -722,7 +740,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             title="Live Code Analysis"
           >
             🔍 Analysis
-            {codeAnalysis && codeAnalysis.warnings.length > 0 && (
+            {codeAnalysis && codeAnalysis.warnings && codeAnalysis.warnings.length > 0 && (
               <span style={{
                 background: '#ef4444',
                 color: 'white',
@@ -737,7 +755,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           </button>
 
           {/* 🔥 ИНДИКАТОР СЛОЖНОСТИ */}
-          {codeAnalysis && (
+          {codeAnalysis && codeAnalysis.complexity && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
