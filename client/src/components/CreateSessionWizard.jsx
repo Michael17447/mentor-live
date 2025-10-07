@@ -206,14 +206,15 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Server responded with ${response.status}: ${errorText}`);
       }
 
       const sessionData = await response.json();
       const sessionId = sessionData.session_id;
       
       console.log('✅ Session created on server:', sessionId);
-      console.log('📊 Session data:', sessionData);
+      console.log('📊 Full session data:', sessionData);
       
       setGeneratedSessionId(sessionId);
       
@@ -225,7 +226,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
         createdAt: new Date().toISOString(),
         starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode,
         role: 'mentor',
-        serverData: sessionData // сохраняем данные с сервера
+        serverData: sessionData
       };
       
       localStorage.setItem(`session_${sessionId}`, JSON.stringify(localSessionData));
@@ -234,9 +235,11 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
     } catch (error) {
       console.error('❌ Failed to create session on server:', error);
       
-      // 🔥 FALLBACK: создаем локальную сессию если сервер недоступен
-      console.log('🔄 Trying fallback: creating local session...');
-      const sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      // 🔥 FALLBACK: создаем сессию в формате сервера
+      console.log('🔄 Trying fallback: creating server-compatible session...');
+      
+      // Генерируем ID в формате сервера (8 символов, uppercase)
+      const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
       setGeneratedSessionId(sessionId);
       
       const localSessionData = {
@@ -246,7 +249,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
         createdAt: new Date().toISOString(),
         starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode,
         role: 'mentor',
-        isLocal: true // помечаем как локальную сессию
+        isLocal: true
       };
       
       localStorage.setItem(`session_${sessionId}`, JSON.stringify(localSessionData));
@@ -270,8 +273,15 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
   };
 
   const copySessionId = () => {
-    if (generatedSessionId) {
-      navigator.clipboard.writeText(generatedSessionId).then(() => {
+    let sessionIdToCopy = generatedSessionId;
+    
+    // 🔥 КОПИРУЕМ ID БЕЗ ПРЕФИКСА ДЛЯ УЧЕНИКОВ
+    if (sessionIdToCopy.startsWith('sess_')) {
+      sessionIdToCopy = sessionIdToCopy.substring(5);
+    }
+    
+    if (sessionIdToCopy) {
+      navigator.clipboard.writeText(sessionIdToCopy).then(() => {
         const copyBtn = document.getElementById('copy-btn');
         if (copyBtn) {
           const originalText = copyBtn.innerHTML;
@@ -285,7 +295,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
       }).catch(() => {
         // Fallback для старых браузеров
         const textArea = document.createElement('textarea');
-        textArea.value = generatedSessionId;
+        textArea.value = sessionIdToCopy;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
@@ -407,7 +417,8 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               marginBottom: '15px',
               userSelect: 'none'
             }}>
-              {generatedSessionId}
+              {/* 🔥 ПОКАЗЫВАЕМ ID БЕЗ ПРЕФИКСА ДЛЯ УЧЕНИКОВ */}
+              {generatedSessionId.startsWith('sess_') ? generatedSessionId.substring(5) : generatedSessionId}
             </div>
             
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
