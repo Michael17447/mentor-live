@@ -79,66 +79,65 @@ function App() {
     setJoinSessionId('');
   };
 
-  // В App.jsx ЗАМЕНИТЕ функцию handleJoinSession:
-
-const handleJoinSession = async () => {
-  if (!joinSessionId.trim()) {
-    setJoinError('Please enter a session ID');
-    return;
-  }
-
-  // ✅ Нормализуем ID сессии - УБИРАЕМ ПРЕФИКС "sess_"
-  let normalizedSessionId = joinSessionId.trim().toUpperCase();
-  
-  // 🔥 УДАЛЯЕМ ПРЕФИКС "sess_" ЕСЛИ ОН ЕСТЬ
-  if (normalizedSessionId.startsWith('SESS_')) {
-    normalizedSessionId = normalizedSessionId.substring(5);
-  }
-  
-  console.log(`🎯 Attempting to join session: ${normalizedSessionId} as ${joinRole}`);
-
-  setIsJoining(true);
-  setJoinError('');
-
-  try {
-    // 🔥 ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ СЕССИИ НА СЕРВЕРЕ
-    console.log(`🔍 Checking session: ${normalizedSessionId}`);
-    const sessionExists = await checkSessionExists(normalizedSessionId);
-    
-    if (!sessionExists) {
-      setJoinError(`Session "${normalizedSessionId}" not found. Please check the session ID.`);
-      setIsJoining(false);
+  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ПРИСОЕДИНЕНИЯ К СЕССИИ
+  const handleJoinSession = async () => {
+    if (!joinSessionId.trim()) {
+      setJoinError('Please enter a session ID');
       return;
     }
 
-    // ✅ Сессия существует, продолжаем присоединение
-    const newSession = {
-      id: normalizedSessionId, // 🔥 ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЙ ID
-      language: joinLanguage,
-      role: joinRole,
-      joinedAt: new Date().toISOString()
-    };
-
-    // Сохраняем в историю
-    const updatedSessions = [newSession, ...recentSessions.filter(s => s.id !== normalizedSessionId)].slice(0, 5);
-    setRecentSessions(updatedSessions);
-    localStorage.setItem('recentSessions', JSON.stringify(updatedSessions));
-
-    // Переходим в сессию
-    setSessionId(normalizedSessionId); // 🔥 ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЙ ID
-    setIsMentor(joinRole === 'mentor');
-    setCurrentView('session');
-    setShowJoinModal(false);
+    // ✅ Нормализуем ID сессии - УБИРАЕМ ПРЕФИКС "sess_"
+    let normalizedSessionId = joinSessionId.trim().toUpperCase();
     
-    console.log(`✅ Successfully joined session: ${normalizedSessionId}`);
+    // 🔥 УДАЛЯЕМ ПРЕФИКС "sess_" ЕСЛИ ОН ЕСТЬ
+    if (normalizedSessionId.startsWith('SESS_')) {
+      normalizedSessionId = normalizedSessionId.substring(5);
+    }
+    
+    console.log(`🎯 Attempting to join session: ${normalizedSessionId} as ${joinRole}`);
 
-  } catch (error) {
-    console.error('❌ Error joining session:', error);
-    setJoinError('Failed to join session. Please try again.');
-  } finally {
-    setIsJoining(false);
-  }
-};
+    setIsJoining(true);
+    setJoinError('');
+
+    try {
+      // 🔥 ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ СЕССИИ НА СЕРВЕРЕ
+      console.log(`🔍 Checking session: ${normalizedSessionId}`);
+      const sessionExists = await checkSessionExists(normalizedSessionId);
+      
+      if (!sessionExists) {
+        setJoinError(`Session "${normalizedSessionId}" not found. Please check the session ID.`);
+        setIsJoining(false);
+        return;
+      }
+
+      // ✅ Сессия существует, продолжаем присоединение
+      const newSession = {
+        id: normalizedSessionId, // 🔥 ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЙ ID
+        language: joinLanguage,
+        role: joinRole,
+        joinedAt: new Date().toISOString()
+      };
+
+      // Сохраняем в историю
+      const updatedSessions = [newSession, ...recentSessions.filter(s => s.id !== normalizedSessionId)].slice(0, 5);
+      setRecentSessions(updatedSessions);
+      localStorage.setItem('recentSessions', JSON.stringify(updatedSessions));
+
+      // Переходим в сессию
+      setSessionId(normalizedSessionId); // 🔥 ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЙ ID
+      setIsMentor(joinRole === 'mentor');
+      setCurrentView('session');
+      setShowJoinModal(false);
+      
+      console.log(`✅ Successfully joined session: ${normalizedSessionId}`);
+
+    } catch (error) {
+      console.error('❌ Error joining session:', error);
+      setJoinError('Failed to join session. Please try again.');
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   const quickStartSession = (language = 'javascript', role = 'mentor') => {
     // 🔥 ДЛЯ БЫСТРОГО СТАРТА СОЗДАЕМ СЕССИЮ ЧЕРЕЗ API
@@ -732,6 +731,9 @@ const handleJoinSession = async () => {
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
                 onBlur={(e) => e.target.style.borderColor = joinError ? '#dc2626' : '#d1d5db'}
               />
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                💡 Enter the session ID provided by your mentor (e.g., ABC123DE)
+              </div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
