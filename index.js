@@ -1,3 +1,4 @@
+// index.js (серверная часть)
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -210,10 +211,26 @@ const LANGUAGE_SNIPPETS = {
 // 🔥 ИСПРАВЛЕННАЯ СТРУКТУРА СЕССИЙ
 const sessions = {};
 
+// 🔥 ФУНКЦИЯ ДЛЯ НОРМАЛИЗАЦИИ ID СЕССИИ
+const normalizeSessionId = (sessionId) => {
+  if (!sessionId) return sessionId;
+  
+  // Убираем префикс "sess_" если есть и приводим к верхнему регистру
+  let normalized = sessionId.toUpperCase();
+  if (normalized.startsWith('SESS_')) {
+    normalized = normalized.substring(5);
+  }
+  
+  console.log(`🔄 Normalized session ID: ${sessionId} -> ${normalized}`);
+  return normalized;
+};
+
 // === API для интеграции с платформами ===
 app.post('/api/sessions', (req, res) => {
   console.log('📝 Creating new session:', req.body);
   const { course_id, lesson_id, user_id, role = 'student', language = 'javascript', sessionType = 'mentoring' } = req.body;
+  
+  // 🔥 ГЕНЕРИРУЕМ ID В КОРРЕКТНОМ ФОРМАТЕ (8 символов, uppercase)
   const sessionId = uuidv4().substring(0, 8).toUpperCase();
   
   // Проверяем поддержку языка
@@ -312,13 +329,14 @@ app.get('/api/stats', (req, res) => {
 
 // 🔥 ДОБАВИТЬ НОВЫЕ API ДЛЯ ИСТОРИИ (если есть база данных)
 app.get('/api/sessions/:sessionId/info', (req, res) => {
-  const session = sessions[req.params.sessionId];
+  const normalizedSessionId = normalizeSessionId(req.params.sessionId);
+  const session = sessions[normalizedSessionId];
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
   
   res.json({
-    sessionId: req.params.sessionId,
+    sessionId: normalizedSessionId,
     userCount: session.users.length,
     studentCanEdit: session.studentCanEdit,
     language: session.language,
@@ -351,13 +369,14 @@ app.get('/api/debug/sessions', (req, res) => {
 });
 
 app.get('/api/debug/session/:sessionId', (req, res) => {
-  const session = sessions[req.params.sessionId];
+  const normalizedSessionId = normalizeSessionId(req.params.sessionId);
+  const session = sessions[normalizedSessionId];
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
   
   res.json({
-    sessionId: req.params.sessionId,
+    sessionId: normalizedSessionId,
     ...session,
     codePreview: session.code ? session.code.substring(0, 200) + '...' : 'empty',
     languageInfo: SUPPORTED_LANGUAGES[session.language]
@@ -366,10 +385,10 @@ app.get('/api/debug/session/:sessionId', (req, res) => {
 
 // 🔥 API ДЛЯ УПРАВЛЕНИЯ СЕССИЯМИ
 app.delete('/api/sessions/:sessionId', (req, res) => {
-  const sessionId = req.params.sessionId;
-  if (sessions[sessionId]) {
-    delete sessions[sessionId];
-    console.log(`🗑️ Session ${sessionId} deleted via API`);
+  const normalizedSessionId = normalizeSessionId(req.params.sessionId);
+  if (sessions[normalizedSessionId]) {
+    delete sessions[normalizedSessionId];
+    console.log(`🗑️ Session ${normalizedSessionId} deleted via API`);
     res.json({ message: 'Session deleted successfully' });
   } else {
     res.status(404).json({ error: 'Session not found' });
@@ -382,18 +401,20 @@ io.on('connection', (socket) => {
   console.log('📍 Headers origin:', socket.handshake.headers.origin);
   console.log('📍 User agent:', socket.handshake.headers['user-agent']);
 
-  // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК join-session С ПОДДЕРЖКОЙ ЯЗЫКОВ
+  // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК join-session С НОРМАЛИЗАЦИЕЙ ID
   socket.on('join-session', async (sessionId, language = 'javascript') => {
-    console.log(`📥 ${socket.id} joined session: ${sessionId} with language: ${language}`);
-    socket.sessionId = sessionId;
+    // 🔥 НОРМАЛИЗУЕМ ID СЕССИИ
+    const normalizedSessionId = normalizeSessionId(sessionId);
+    console.log(`📥 ${socket.id} joined session: ${sessionId} -> normalized: ${normalizedSessionId} with language: ${language}`);
+    socket.sessionId = normalizedSessionId;
     
     // Проверяем и нормализуем язык
     const normalizedLanguage = SUPPORTED_LANGUAGES[language] ? language : 'javascript';
     const starterCode = SUPPORTED_LANGUAGES[normalizedLanguage]?.starterCode || '// Start coding...\n';
     
-    // 🔥 ИНИЦИАЛИЗАЦИЯ СЕССИИ ЕСЛИ НЕТУ
-    if (!sessions[sessionId]) {
-      sessions[sessionId] = {
+    // 🔥 ИНИЦИАЛИЗАЦИЯ СЕССИИ С НОРМАЛИЗОВАННЫМ ID
+    if (!sessions[normalizedSessionId]) {
+      sessions[normalizedSessionId] = {
         users: [],
         code: starterCode,
         studentCanEdit: false,
@@ -403,57 +424,59 @@ io.on('connection', (socket) => {
         mentorId: socket.id
       };
       
-      console.log(`🆕 Created ${normalizedLanguage} session: ${sessionId}`);
+      console.log(`🆕 Created ${normalizedLanguage} session: ${normalizedSessionId}`);
     }
     
-    sessions[sessionId].users.push(socket.id);
-    sessions[sessionId].lastActivity = Date.now();
-    socket.join(sessionId);
+    sessions[normalizedSessionId].users.push(socket.id);
+    sessions[normalizedSessionId].lastActivity = Date.now();
+    socket.join(normalizedSessionId);
     
     // 🔥 ОТПРАВИТЬ ТЕКУЩЕЕ СОСТОЯНИЕ НОВОМУ ПОЛЬЗОВАТЕЛЮ
-    socket.emit('code-update', sessions[sessionId].code);
-    socket.emit('student-edit-permission', sessions[sessionId].studentCanEdit);
+    socket.emit('code-update', sessions[normalizedSessionId].code);
+    socket.emit('student-edit-permission', sessions[normalizedSessionId].studentCanEdit);
     socket.emit('language-changed', { 
-      language: sessions[sessionId].language,
-      languageInfo: SUPPORTED_LANGUAGES[sessions[sessionId].language]
+      language: sessions[normalizedSessionId].language,
+      languageInfo: SUPPORTED_LANGUAGES[sessions[normalizedSessionId].language]
     });
     
     // 🔥 УВЕДОМИТЬ ДРУГИХ УЧАСТНИКОВ О ПРИСОЕДИНЕНИИ
-    socket.to(sessionId).emit('user-joined', { 
+    socket.to(normalizedSessionId).emit('user-joined', { 
       userId: socket.id,
-      userCount: sessions[sessionId].users.length
+      userCount: sessions[normalizedSessionId].users.length
     });
     
-    console.log(`👥 Users in ${sessions[sessionId].language} session ${sessionId}:`, sessions[sessionId].users.length);
+    console.log(`👥 Users in ${sessions[normalizedSessionId].language} session ${normalizedSessionId}:`, sessions[normalizedSessionId].users.length);
   });
 
   // 🔥 КРИТИЧЕСКИ ВАЖНО: Исправленный обработчик разрешения редактирования
   socket.on('toggle-student-edit', (data) => {
-    console.log(`✏️ Student edit permission: ${data.allowEdit} in ${data.sessionId}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`✏️ Student edit permission: ${data.allowEdit} in ${data.sessionId} -> normalized: ${normalizedSessionId}`);
     
     // 🔥 СОХРАНИТЬ СОСТОЯНИЕ В СЕССИИ
-    if (sessions[data.sessionId]) {
-      sessions[data.sessionId].studentCanEdit = data.allowEdit;
-      sessions[data.sessionId].lastActivity = Date.now();
+    if (sessions[normalizedSessionId]) {
+      sessions[normalizedSessionId].studentCanEdit = data.allowEdit;
+      sessions[normalizedSessionId].lastActivity = Date.now();
     }
     
     // 🔥 ОТПРАВИТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ
-    io.to(data.sessionId).emit('student-edit-permission', data.allowEdit);
+    io.to(normalizedSessionId).emit('student-edit-permission', data.allowEdit);
   });
 
   // 🔥 КРИТИЧЕСКИ ВАЖНО: ИСПРАВЛЕННЫЙ обработчик изменений кода от ученика
   socket.on('student-code-change', (data) => {
-    console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId}`);
-    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[data.sessionId]?.language}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`📝 Student ${data.studentId} changed code in ${data.sessionId} -> normalized: ${normalizedSessionId}`);
+    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[normalizedSessionId]?.language}`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
-    if (sessions[data.sessionId]) {
-      sessions[data.sessionId].code = data.code;
-      sessions[data.sessionId].lastActivity = Date.now();
+    if (sessions[normalizedSessionId]) {
+      sessions[normalizedSessionId].code = data.code;
+      sessions[normalizedSessionId].lastActivity = Date.now();
     }
     
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ УЧАСТНИКАМ СЕССИИ (ВКЛЮЧАЯ МЕНТОРА)
-    socket.to(data.sessionId).emit('code-update', data.code);
+    socket.to(normalizedSessionId).emit('code-update', data.code);
     
     // Логируем для отладки
     const preview = data.code ? data.code.substring(0, 50) + '...' : 'empty';
@@ -462,17 +485,18 @@ io.on('connection', (socket) => {
 
   // 🔥 ИСПРАВЛЕННЫЙ ОБРАБОТЧИК code-change
   socket.on('code-change', async (data) => {
-    console.log(`📝 Code change in ${data.sessionId} by ${socket.id}`);
-    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[data.sessionId]?.language}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`📝 Code change in ${data.sessionId} -> normalized: ${normalizedSessionId} by ${socket.id}`);
+    console.log(`📄 Code length: ${data.code?.length} chars, Language: ${sessions[normalizedSessionId]?.language}`);
     
     // 🔥 ОБНОВИТЬ КОД В СЕССИИ
-    if (sessions[data.sessionId]) {
-      sessions[data.sessionId].code = data.code;
-      sessions[data.sessionId].lastActivity = Date.now();
+    if (sessions[normalizedSessionId]) {
+      sessions[normalizedSessionId].code = data.code;
+      sessions[normalizedSessionId].lastActivity = Date.now();
     }
     
     // 🔥 ПЕРЕСЛАТЬ ВСЕМ, КРОМЕ ОТПРАВИТЕЛЯ
-    socket.to(data.sessionId).emit('code-update', data.code);
+    socket.to(normalizedSessionId).emit('code-update', data.code);
     
     // Логируем для отладки (первые 100 символов)
     const preview = data.code ? data.code.substring(0, 100) + '...' : 'empty';
@@ -481,48 +505,49 @@ io.on('connection', (socket) => {
 
   // 🔥 НОВЫЙ ОБРАБОТЧИК СМЕНЫ ЯЗЫКА ПРОГРАММИРОВАНИЯ
   socket.on('change-language', (data) => {
-    const { sessionId, language, code } = data;
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
     
-    if (!SUPPORTED_LANGUAGES[language]) {
+    if (!SUPPORTED_LANGUAGES[data.language]) {
       socket.emit('error', { message: 'Unsupported language' });
       return;
     }
     
-    if (sessions[sessionId]) {
-      const previousLanguage = sessions[sessionId].language;
-      sessions[sessionId].language = language;
+    if (sessions[normalizedSessionId]) {
+      const previousLanguage = sessions[normalizedSessionId].language;
+      sessions[normalizedSessionId].language = data.language;
       
       // Если передан новый код, используем его, иначе используем стартовый код языка
-      if (code) {
-        sessions[sessionId].code = code;
+      if (data.code) {
+        sessions[normalizedSessionId].code = data.code;
       } else {
-        sessions[sessionId].code = SUPPORTED_LANGUAGES[language].starterCode;
+        sessions[normalizedSessionId].code = SUPPORTED_LANGUAGES[data.language].starterCode;
       }
       
-      sessions[sessionId].lastActivity = Date.now();
+      sessions[normalizedSessionId].lastActivity = Date.now();
       
-      console.log(`🌍 Language changed from ${previousLanguage} to ${language} in session ${sessionId}`);
+      console.log(`🌍 Language changed from ${previousLanguage} to ${data.language} in session ${data.sessionId} -> normalized: ${normalizedSessionId}`);
       
       // Уведомляем всех участников сессии о смене языка
-      io.to(sessionId).emit('language-changed', {
-        language: language,
-        code: sessions[sessionId].code,
-        languageInfo: SUPPORTED_LANGUAGES[language]
+      io.to(normalizedSessionId).emit('language-changed', {
+        language: data.language,
+        code: sessions[normalizedSessionId].code,
+        languageInfo: SUPPORTED_LANGUAGES[data.language]
       });
     }
   });
 
   // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ СИНХРОНИЗАЦИИ
   socket.on('request-sync', (data) => {
-    console.log(`🔄 Sync requested for session: ${data.sessionId}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`🔄 Sync requested for session: ${data.sessionId} -> normalized: ${normalizedSessionId}`);
     
-    if (sessions[data.sessionId]) {
+    if (sessions[normalizedSessionId]) {
       // Отправить текущее состояние запросившему пользователю
-      socket.emit('code-update', sessions[data.sessionId].code);
-      socket.emit('student-edit-permission', sessions[data.sessionId].studentCanEdit);
+      socket.emit('code-update', sessions[normalizedSessionId].code);
+      socket.emit('student-edit-permission', sessions[normalizedSessionId].studentCanEdit);
       socket.emit('language-changed', { 
-        language: sessions[data.sessionId].language,
-        languageInfo: SUPPORTED_LANGUAGES[sessions[data.sessionId].language]
+        language: sessions[normalizedSessionId].language,
+        languageInfo: SUPPORTED_LANGUAGES[sessions[normalizedSessionId].language]
       });
       console.log(`✅ Sync completed for ${socket.id}`);
     }
@@ -530,14 +555,15 @@ io.on('connection', (socket) => {
 
   // 🔥 ДОБАВИТЬ ОБРАБОТЧИК ПРОВЕРКИ СОСТОЯНИЯ СЕССИИ
   socket.on('get-session-state', (data) => {
-    console.log(`📊 Session state requested for: ${data.sessionId}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`📊 Session state requested for: ${data.sessionId} -> normalized: ${normalizedSessionId}`);
     
-    const sessionState = sessions[data.sessionId] ? {
-      code: sessions[data.sessionId].code,
-      studentCanEdit: sessions[data.sessionId].studentCanEdit,
-      language: sessions[data.sessionId].language,
-      userCount: sessions[data.sessionId].users.length,
-      languageInfo: SUPPORTED_LANGUAGES[sessions[data.sessionId].language]
+    const sessionState = sessions[normalizedSessionId] ? {
+      code: sessions[normalizedSessionId].code,
+      studentCanEdit: sessions[normalizedSessionId].studentCanEdit,
+      language: sessions[normalizedSessionId].language,
+      userCount: sessions[normalizedSessionId].users.length,
+      languageInfo: SUPPORTED_LANGUAGES[sessions[normalizedSessionId].language]
     } : null;
     
     socket.emit('session-state', sessionState);
@@ -545,12 +571,13 @@ io.on('connection', (socket) => {
 
   // 🔥 ДОБАВИТЬ НОВЫЙ ОБРАБОТЧИК ДЛЯ AI-ПОДСКАЗОК
   socket.on('ai-hint-generated', async (data) => {
-    console.log(`🧠 AI hint in ${data.sessionId} for ${data.language || 'javascript'}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`🧠 AI hint in ${data.sessionId} -> normalized: ${normalizedSessionId} for ${data.language || 'javascript'}`);
     console.log(`💡 Hint: ${data.hint}`);
     
     // Отправляем AI-подсказку всем участникам сессии
-    if (sessions[data.sessionId]) {
-      io.to(data.sessionId).emit('ai-hint', {
+    if (sessions[normalizedSessionId]) {
+      io.to(normalizedSessionId).emit('ai-hint', {
         hint: data.hint,
         confidence: data.confidence || 0.5,
         language: data.language || 'javascript',
@@ -561,54 +588,58 @@ io.on('connection', (socket) => {
 
   // 🔥 ДОБАВИТЬ ОБРАБОТЧИК ЗАВЕРШЕНИЯ СЕССИИ
   socket.on('end-session', async (data) => {
-    console.log(`🔚 Ending session: ${data.sessionId}`);
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`🔚 Ending session: ${data.sessionId} -> normalized: ${normalizedSessionId}`);
     
-    if (sessions[data.sessionId]) {
+    if (sessions[normalizedSessionId]) {
       // Уведомляем всех участников о завершении сессии
-      io.to(data.sessionId).emit('session-ended', {
+      io.to(normalizedSessionId).emit('session-ended', {
         reason: data.reason,
         endedBy: socket.id,
-        duration: Date.now() - sessions[data.sessionId].createdAt
+        duration: Date.now() - sessions[normalizedSessionId].createdAt
       });
       
       // Закрываем сессию
-      delete sessions[data.sessionId];
-      console.log(`✅ Session ${data.sessionId} ended by ${socket.id}`);
+      delete sessions[normalizedSessionId];
+      console.log(`✅ Session ${normalizedSessionId} ended by ${socket.id}`);
     }
   });
 
   // 🔥 ОБРАБОТЧИК ДЛЯ СНИППЕТОВ КОДА
   socket.on('request-snippets', (data) => {
-    const { sessionId, language } = data;
-    const snippets = LANGUAGE_SNIPPETS[language] || {};
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    const snippets = LANGUAGE_SNIPPETS[data.language] || {};
     
-    console.log(`📋 Snippets requested for ${language} in session ${sessionId}`);
+    console.log(`📋 Snippets requested for ${data.language} in session ${data.sessionId} -> normalized: ${normalizedSessionId}`);
     socket.emit('snippets-data', {
-      language: language,
+      language: data.language,
       snippets: snippets
     });
   });
 
   socket.on('signal', (data) => {
-    console.log(`📡 Signal from ${socket.id} in ${data.sessionId}`);
-    socket.to(data.sessionId).emit('signal', { 
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`📡 Signal from ${socket.id} in ${data.sessionId} -> normalized: ${normalizedSessionId}`);
+    socket.to(normalizedSessionId).emit('signal', { 
       signal: data.signal, 
       from: socket.id 
     });
   });
 
   socket.on('user-audio-status', (data) => {
-    console.log(`🎤 Audio status: ${data.userId} -> ${data.active} in ${data.sessionId}`);
-    socket.to(data.sessionId).emit('user-audio-status', { 
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    console.log(`🎤 Audio status: ${data.userId} -> ${data.active} in ${data.sessionId} -> normalized: ${normalizedSessionId}`);
+    socket.to(normalizedSessionId).emit('user-audio-status', { 
       userId: data.userId, 
       active: data.active 
     });
   });
 
   socket.on('cursor-move', (data) => {
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
     // Дебаунсим события движения курсора для производительности
-    if (sessions[data.sessionId]) {
-      socket.to(data.sessionId).emit('cursor-update', { 
+    if (sessions[normalizedSessionId]) {
+      socket.to(normalizedSessionId).emit('cursor-update', { 
         position: data.position, 
         userId: data.userId 
       });
@@ -617,10 +648,11 @@ io.on('connection', (socket) => {
 
   // 🔥 ОБРАБОТЧИК ДЛЯ СТАТИСТИКИ И АНАЛИТИКИ
   socket.on('get-session-stats', (data) => {
-    const session = sessions[data.sessionId];
+    const normalizedSessionId = normalizeSessionId(data.sessionId);
+    const session = sessions[normalizedSessionId];
     if (session) {
       const stats = {
-        sessionId: data.sessionId,
+        sessionId: normalizedSessionId,
         userCount: session.users.length,
         language: session.language,
         codeLength: session.code?.length,

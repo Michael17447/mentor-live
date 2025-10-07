@@ -235,10 +235,10 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
     } catch (error) {
       console.error('❌ Failed to create session on server:', error);
       
-      // 🔥 FALLBACK: создаем сессию в формате сервера
+      // 🔥 FALLBACK: создаем сессию в формате сервера БЕЗ ПРЕФИКСА
       console.log('🔄 Trying fallback: creating server-compatible session...');
       
-      // Генерируем ID в формате сервера (8 символов, uppercase)
+      // Генерируем ID в формате сервера (8 символов, uppercase) БЕЗ ПРЕФИКСА
       const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
       setGeneratedSessionId(sessionId);
       
@@ -274,11 +274,6 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
 
   const copySessionId = () => {
     let sessionIdToCopy = generatedSessionId;
-    
-    // 🔥 КОПИРУЕМ ID БЕЗ ПРЕФИКСА ДЛЯ УЧЕНИКОВ
-    if (sessionIdToCopy.startsWith('sess_')) {
-      sessionIdToCopy = sessionIdToCopy.substring(5);
-    }
     
     if (sessionIdToCopy) {
       navigator.clipboard.writeText(sessionIdToCopy).then(() => {
@@ -417,8 +412,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               marginBottom: '15px',
               userSelect: 'none'
             }}>
-              {/* 🔥 ПОКАЗЫВАЕМ ID БЕЗ ПРЕФИКСА ДЛЯ УЧЕНИКОВ */}
-              {generatedSessionId.startsWith('sess_') ? generatedSessionId.substring(5) : generatedSessionId}
+              {generatedSessionId}
             </div>
             
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -498,7 +492,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
             fontWeight: '500',
             userSelect: 'none'
           }}>
-            💡 <strong>Совет:</strong> Скопируйте ID и отправьте ученикам перед переходом в сессию
+            💡 <strong>Совет:</strong> Ученики должны ввести этот ID для присоединения к сессии
           </div>
         </div>
       ) : (
