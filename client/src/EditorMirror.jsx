@@ -109,6 +109,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const reconnectAttemptsRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const analysisTimeoutRef = useRef(null);
+  const lastServerCodeRef = useRef('');
 
   // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА КОДА (ИСПРАВЛЕННАЯ)
   const analyzeCode = useCallback((codeToAnalyze) => {
@@ -163,26 +164,44 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         sessionId, 
         allowEdit: newPermission 
       });
+      console.log(`✏️ Student edit permission ${newPermission ? 'enabled' : 'disabled'}`);
     }
   }, [studentCanEdit, sessionId]);
 
-  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЙ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastCodeUpdateRef.current;
+    
+    // 🔥 ЗАЩИТА ОТ СЛИШКОМ ЧАСТЫХ ОБНОВЛЕНИЙ
+    if (timeSinceLastUpdate < 50) {
+      return;
+    }
+    
+    // 🔥 ПРОВЕРЯЕМ, ЧТО КОД ДЕЙСТВИТЕЛЬНО ИЗМЕНИЛСЯ
+    if (value === lastServerCodeRef.current) {
+      return;
+    }
+    
+    console.log('📝 Local code change detected');
+    
     // 🔥 ОБНОВЛЯЕМ КОД ЛОКАЛЬНО СРАЗУ
     setCode(value);
-    lastCodeUpdateRef.current = Date.now();
+    lastCodeUpdateRef.current = now;
     
     // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА
     analyzeCode(value);
     
     // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
     if (isMentor && socketRef.current?.connected) {
+      console.log('📤 Sending code change to server (mentor)');
       socketRef.current.emit('code-change', { sessionId, code: value });
     } 
     // 🔥 УЧЕНИК ТОЛЬКО С РАЗРЕШЕНИЯ
     else if (studentCanEdit && socketRef.current?.connected) {
+      console.log('📤 Sending code change to server (student)');
       socketRef.current.emit('student-code-change', { 
         sessionId, 
         code: value,
@@ -233,6 +252,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     const newStarterCode = SUPPORTED_LANGUAGES[newLanguage].starterCode;
     setCode(newStarterCode);
     lastCodeUpdateRef.current = Date.now();
+    lastServerCodeRef.current = newStarterCode;
     
     // 🔥 ЗАПУСКАЕМ АНАЛИЗ ДЛЯ НОВОГО КОДА
     analyzeCode(newStarterCode);
@@ -289,7 +309,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     };
   }, [insertSnippet]);
 
-  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ
+  // 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ПОДКЛЮЧЕНИЯ С ПОВТОРНЫМИ ПОПЫТКАМИ
   const connectSocket = useCallback(() => {
     if (socketRef.current?.connected) {
       console.log('🔗 Сокет уже подключен');
@@ -297,6 +317,10 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
 
     console.log('🔗 Установка соединения сокета...');
+    console.log('🎯 Session ID:', sessionId);
+    console.log('👤 User ID:', userId);
+    console.log('🎓 Role:', isMentor ? 'mentor' : 'student');
+    
     setConnectionStatus('connecting');
     
     const socket = io(SOCKET_SERVER, {
@@ -316,8 +340,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       setConnectionStatus('connected');
       reconnectAttemptsRef.current = 0;
       
-      // Присоединяемся к сессии только после успешного подключения
-      socket.emit('join-session', sessionId, currentLanguage);
+      // 🔥 ПРИСОЕДИНЯЕМСЯ К СЕССИИ ТОЛЬКО ПОСЛЕ УСПЕШНОГО ПОДКЛЮЧЕНИЯ
+      if (sessionId) {
+        console.log(`🎯 Joining session: ${sessionId} with language: ${currentLanguage}`);
+        socket.emit('join-session', sessionId, currentLanguage);
+      } else {
+        console.error('❌ No sessionId provided for connection');
+      }
     });
 
     socket.on('disconnect', (reason) => {
@@ -330,7 +359,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       console.log(`🔄 Переподключено к серверу после ${attemptNumber} попыток`);
       setIsConnected(true);
       setConnectionStatus('connected');
-      socket.emit('join-session', sessionId, currentLanguage);
+      
+      // 🔥 ПЕРЕПРИСОЕДИНЯЕМСЯ К СЕССИИ ПРИ ПЕРЕПОДКЛЮЧЕНИИ
+      if (sessionId) {
+        socket.emit('join-session', sessionId, currentLanguage);
+      }
     });
 
     socket.on('reconnect_attempt', (attemptNumber) => {
@@ -359,13 +392,16 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       logEvent('audio-status', { userId: remoteId, active });
     });
 
-    // 🔥 ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
+    // 🔥 УЛУЧШЕННЫЙ ОБРАБОТЧИК ОБНОВЛЕНИЯ КОДА
     socket.on('code-update', (newCode) => {
       console.log('📥 Получено обновление кода от сервера');
       
+      // 🔥 СОХРАНЯЕМ ПОСЛЕДНИЙ КОД С СЕРВЕРА ДЛЯ ИЗБЕЖАНИЯ ЦИКЛОВ
+      lastServerCodeRef.current = newCode;
+      
       // 🔥 ПРОВЕРЯЕМ, ЧТО ЭТО НЕ НАШЕ СОБСТВЕННОЕ ИЗМЕНЕНИЕ
       const timeSinceLastUpdate = Date.now() - lastCodeUpdateRef.current;
-      if (timeSinceLastUpdate > 50) {
+      if (timeSinceLastUpdate > 100) { // Увеличили задержку для надежности
         console.log('🔄 Применение удаленного обновления кода');
         setCode(newCode);
         // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ ПОЛУЧЕНИИ КОДА ОТ СЕРВЕРА
@@ -381,6 +417,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       setCurrentLanguage(data.language);
       if (data.code) {
         setCode(data.code);
+        lastServerCodeRef.current = data.code;
         // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ СМЕНЕ ЯЗЫКА
         analyzeCode(data.code);
       }
@@ -410,6 +447,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (isMentor) {
         console.log(`📝 Ученик ${studentId} изменил код, обновляем вид ментора`);
         // 🔥 МЕНТОР ВИДЕТ ИЗМЕНЕНИЯ УЧЕНИКА
+        lastServerCodeRef.current = newCode;
         setCode(newCode);
         lastCodeUpdateRef.current = Date.now();
         // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА УЧЕНИКА
@@ -421,6 +459,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     socket.on('session-state', (state) => {
       console.log('📊 Получено состояние сессии:', state);
       if (state) {
+        lastServerCodeRef.current = state.code;
         setCode(state.code);
         setStudentCanEdit(state.studentCanEdit);
         setCurrentLanguage(state.language);
@@ -430,12 +469,12 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     // 🔥 ОБРАБОТЧИК ПРИСОЕДИНЕНИЯ/ВЫХОДА ПОЛЬЗОВАТЕЛЕЙ
-    socket.on('user-joined', ({ userId: joinedUserId }) => {
-      console.log(`👋 Пользователь ${joinedUserId} присоединился к сессии`);
+    socket.on('user-joined', ({ userId: joinedUserId, userCount }) => {
+      console.log(`👋 Пользователь ${joinedUserId} присоединился к сессии. Всего пользователей: ${userCount}`);
     });
 
-    socket.on('user-left', ({ userId: leftUserId }) => {
-      console.log(`👋 Пользователь ${leftUserId} покинул сессию`);
+    socket.on('user-left', ({ userId: leftUserId, userCount }) => {
+      console.log(`👋 Пользователь ${leftUserId} покинул сессию. Осталось пользователей: ${userCount}`);
       setRemoteCursors(prev => {
         const newCursors = { ...prev };
         delete newCursors[leftUserId];
@@ -443,13 +482,28 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       });
     });
 
+    // 🔥 ОБРАБОТЧИК AI-ПОДСКАЗОК
+    socket.on('ai-hint', (hintData) => {
+      console.log('🧠 Получена AI-подсказка:', hintData);
+      const newHint = {
+        id: Date.now(),
+        text: hintData.hint,
+        time: new Date().toLocaleTimeString(),
+        language: hintData.language,
+        confidence: hintData.confidence
+      };
+      
+      setAiHints((prev) => [...prev, newHint]);
+      setShowAIPanel(true);
+    });
+
     return socket;
   }, [sessionId, userId, logEvent, isMentor, currentLanguage, analyzeCode]);
 
   // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {
-    // Подключаемся только при первоначальном монтировании
-    if (isInitialMountRef.current) {
+    // Подключаемся только при первоначальном монтировании или изменении sessionId
+    if (isInitialMountRef.current || sessionId) {
       connectSocket();
       isInitialMountRef.current = false;
     }
@@ -600,8 +654,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       language: currentLanguage,
       languageName: languageInfo?.name,
       extension: languageInfo?.extension,
-      codeAnalysis: codeAnalysis, // 🔥 ДОБАВЛЯЕМ АНАЛИЗ В ЭКСПОРТ
+      codeAnalysis: codeAnalysis,
       exportedAt: new Date().toISOString(),
+      connectionStatus: connectionStatus,
+      isMentor: isMentor,
+      userId: userId
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
@@ -647,6 +704,18 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const requestSessionState = () => {
     if (socketRef.current?.connected) {
       socketRef.current.emit('get-session-state', { sessionId });
+    }
+  };
+
+  // 🔥 ЗАВЕРШЕНИЕ СЕССИИ (ДЛЯ МЕНТОРА)
+  const endSession = () => {
+    if (socketRef.current?.connected && isMentor) {
+      if (confirm('Вы уверены, что хотите завершить сессию для всех участников?')) {
+        socketRef.current.emit('end-session', {
+          sessionId,
+          reason: 'ended_by_mentor'
+        });
+      }
     }
   };
 
@@ -719,6 +788,24 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                connectionStatus}
             </span>
             {!isConnected && <span>🔄</span>}
+          </div>
+
+          {/* Информация о сессии */}
+          <div style={{
+            padding: '6px 12px',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '6px',
+            color: 'white',
+            fontSize: '12px',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <span>🎯</span>
+            <span>ID: {sessionId}</span>
+            <span style={{ opacity: 0.7 }}>|</span>
+            <span>{isMentor ? '👨‍🏫 Ментор' : '👨‍🎓 Ученик'}</span>
           </div>
 
           {/* 🔥 КНОПКА АНАЛИЗА КОДА */}
@@ -983,6 +1070,26 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               }}
             >
               🧠 ИИ ({aiHints.length})
+            </button>
+          )}
+
+          {/* Кнопка завершения сессии для ментора */}
+          {isMentor && (
+            <button
+              onClick={endSession}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                background: '#dc2626',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+              title="Завершить сессию для всех участников"
+            >
+              🔚 Завершить
             </button>
           )}
 

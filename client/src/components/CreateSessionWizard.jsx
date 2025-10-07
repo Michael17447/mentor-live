@@ -186,25 +186,73 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
     markup: ['html', 'css']
   };
 
-  const createSession = () => {
+  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ СЕССИИ
+  const createSession = async () => {
     console.log('🔄 Starting session creation...');
     setIsCreating(true);
 
-    const sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    setGeneratedSessionId(sessionId);
-    
-    const sessionData = {
-      id: sessionId,
-      language: selectedLanguage,
-      type: sessionType,
-      createdAt: new Date().toISOString(),
-      starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode,
-      role: 'mentor'
-    };
-    
-    localStorage.setItem(`session_${sessionId}`, JSON.stringify(sessionData));
-    console.log('✅ Session data saved to localStorage:', sessionId);
-    
+    try {
+      // 🔥 СОЗДАЕМ СЕССИЮ НА СЕРВЕРЕ ЧЕРЕЗ API
+      const response = await fetch('https://mentor-live-production.up.railway.app/api/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          language: selectedLanguage,
+          sessionType: sessionType,
+          role: 'mentor'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      }
+
+      const sessionData = await response.json();
+      const sessionId = sessionData.session_id;
+      
+      console.log('✅ Session created on server:', sessionId);
+      console.log('📊 Session data:', sessionData);
+      
+      setGeneratedSessionId(sessionId);
+      
+      // Сохраняем также в localStorage для истории
+      const localSessionData = {
+        id: sessionId,
+        language: selectedLanguage,
+        type: sessionType,
+        createdAt: new Date().toISOString(),
+        starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode,
+        role: 'mentor',
+        serverData: sessionData // сохраняем данные с сервера
+      };
+      
+      localStorage.setItem(`session_${sessionId}`, JSON.stringify(localSessionData));
+      console.log('✅ Session data saved to localStorage:', sessionId);
+      
+    } catch (error) {
+      console.error('❌ Failed to create session on server:', error);
+      
+      // 🔥 FALLBACK: создаем локальную сессию если сервер недоступен
+      console.log('🔄 Trying fallback: creating local session...');
+      const sessionId = 'sess_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      setGeneratedSessionId(sessionId);
+      
+      const localSessionData = {
+        id: sessionId,
+        language: selectedLanguage,
+        type: sessionType,
+        createdAt: new Date().toISOString(),
+        starterCode: SUPPORTED_LANGUAGES[selectedLanguage].starterCode,
+        role: 'mentor',
+        isLocal: true // помечаем как локальную сессию
+      };
+      
+      localStorage.setItem(`session_${sessionId}`, JSON.stringify(localSessionData));
+      console.log('✅ Local session created as fallback:', sessionId);
+    }
+
     setTimeout(() => {
       setIsCreating(false);
       setShowSessionCreated(true);
@@ -235,6 +283,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
           }, 2000);
         }
       }).catch(() => {
+        // Fallback для старых браузеров
         const textArea = document.createElement('textarea');
         textArea.value = generatedSessionId;
         document.body.appendChild(textArea);
@@ -892,7 +941,7 @@ const CreateSessionWizard = ({ onSessionCreated }) => {
               fontWeight: '500',
               userSelect: 'none'
             }}>
-              ✅ <strong>Готово к созданию!</strong> Сессия будет создана локально в вашем браузере
+              ✅ <strong>Готово к созданию!</strong> Сессия будет создана на сервере для реальной синхронизации
             </div>
           </div>
         </>

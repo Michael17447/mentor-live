@@ -16,6 +16,8 @@ function App() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [recentSessions, setRecentSessions] = useState([]);
   const [stats, setStats] = useState(null);
+  const [joinError, setJoinError] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   // Генерация ID пользователя при загрузке
   useEffect(() => {
@@ -35,10 +37,35 @@ function App() {
   const fetchServerStats = async () => {
     try {
       const response = await fetch('https://mentor-live-production.up.railway.app/api/stats');
-      const data = await response.json();
-      setStats(data);
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
     } catch (error) {
       console.error('Failed to fetch server stats:', error);
+    }
+  };
+
+  // 🔥 ПРОВЕРКА СУЩЕСТВОВАНИЯ СЕССИИ НА СЕРВЕРЕ
+  const checkSessionExists = async (sessionId) => {
+    try {
+      console.log(`🔍 Checking if session exists: ${sessionId}`);
+      const response = await fetch(`https://mentor-live-production.up.railway.app/api/sessions/${sessionId}/info`);
+      
+      if (response.ok) {
+        const sessionInfo = await response.json();
+        console.log('✅ Session exists on server:', sessionInfo);
+        return true;
+      } else if (response.status === 404) {
+        console.log('❌ Session not found on server');
+        return false;
+      } else {
+        console.log('⚠️ Server error when checking session');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error checking session:', error);
+      return false;
     }
   };
 
@@ -48,34 +75,68 @@ function App() {
 
   const joinExistingSession = () => {
     setShowJoinModal(true);
+    setJoinError('');
+    setJoinSessionId('');
   };
 
-  const handleJoinSession = () => {
+  // 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ПРИСОЕДИНЕНИЯ К СЕССИИ
+  const handleJoinSession = async () => {
     if (!joinSessionId.trim()) {
-      alert('Please enter a session ID');
+      setJoinError('Please enter a session ID');
       return;
     }
 
-    // Сохраняем сессию в историю
-    const newSession = {
-      id: joinSessionId,
-      language: joinLanguage,
-      role: joinRole,
-      joinedAt: new Date().toISOString()
-    };
+    // ✅ Нормализуем ID сессии
+    const normalizedSessionId = joinSessionId.trim().toUpperCase();
+    console.log(`🎯 Attempting to join session: ${normalizedSessionId} as ${joinRole}`);
 
-    const updatedSessions = [newSession, ...recentSessions.filter(s => s.id !== joinSessionId)].slice(0, 5);
-    setRecentSessions(updatedSessions);
-    localStorage.setItem('recentSessions', JSON.stringify(updatedSessions));
+    setIsJoining(true);
+    setJoinError('');
 
-    // Переходим в сессию
-    setSessionId(joinSessionId.toUpperCase());
-    setIsMentor(joinRole === 'mentor');
-    setCurrentView('session');
-    setShowJoinModal(false);
+    try {
+      // 🔥 ПРОВЕРЯЕМ СУЩЕСТВОВАНИЕ СЕССИИ НА СЕРВЕРЕ
+      const sessionExists = await checkSessionExists(normalizedSessionId);
+      
+      if (!sessionExists) {
+        setJoinError('Session not found. Please check the session ID and try again.');
+        setIsJoining(false);
+        return;
+      }
+
+      // ✅ Сессия существует, продолжаем присоединение
+      const newSession = {
+        id: normalizedSessionId,
+        language: joinLanguage,
+        role: joinRole,
+        joinedAt: new Date().toISOString()
+      };
+
+      // Сохраняем в историю
+      const updatedSessions = [newSession, ...recentSessions.filter(s => s.id !== normalizedSessionId)].slice(0, 5);
+      setRecentSessions(updatedSessions);
+      localStorage.setItem('recentSessions', JSON.stringify(updatedSessions));
+
+      // Переходим в сессию
+      setSessionId(normalizedSessionId);
+      setIsMentor(joinRole === 'mentor');
+      setCurrentView('session');
+      setShowJoinModal(false);
+      
+      console.log(`✅ Successfully joined session: ${normalizedSessionId}`);
+
+    } catch (error) {
+      console.error('❌ Error joining session:', error);
+      setJoinError('Failed to join session. Please try again.');
+    } finally {
+      setIsJoining(false);
+    }
   };
 
   const quickStartSession = (language = 'javascript', role = 'mentor') => {
+    // 🔥 ДЛЯ БЫСТРОГО СТАРТА СОЗДАЕМ СЕССИЮ ЧЕРЕЗ API
+    console.log(`⚡ Quick starting ${language} session as ${role}`);
+    
+    // Временно создаем локальную сессию, но пользователь должен создать через мастер для реальной синхронизации
     const newSessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
     setSessionId(newSessionId);
     setIsMentor(role === 'mentor');
@@ -86,14 +147,17 @@ function App() {
       id: newSessionId,
       language: language,
       role: role,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      isQuickStart: true // Помечаем как быстрый старт
     };
     const updatedSessions = [newSession, ...recentSessions].slice(0, 5);
     setRecentSessions(updatedSessions);
     localStorage.setItem('recentSessions', JSON.stringify(updatedSessions));
+
+    console.log(`🎯 Quick start session created: ${newSessionId}`);
   };
 
-  // 🔥 НОВАЯ ФУНКЦИЯ: Обработка создания сессии из мастера
+  // 🔥 ОБРАБОТКА СОЗДАНИЯ СЕССИИ ИЗ МАСТЕРА
   const handleSessionCreated = (sessionId, language, role) => {
     console.log('🎯 Session created from wizard:', { sessionId, language, role });
     setSessionId(sessionId);
@@ -105,7 +169,8 @@ function App() {
       id: sessionId,
       language: language,
       role: role,
-      joinedAt: new Date().toISOString()
+      joinedAt: new Date().toISOString(),
+      createdFromWizard: true
     };
     const updatedSessions = [newSession, ...recentSessions].slice(0, 5);
     setRecentSessions(updatedSessions);
@@ -113,6 +178,7 @@ function App() {
   };
 
   const reconnectToSession = (session) => {
+    console.log(`🔁 Reconnecting to session: ${session.id}`);
     setSessionId(session.id);
     setIsMentor(session.role === 'mentor');
     setCurrentView('session');
@@ -128,6 +194,7 @@ function App() {
   const goHome = () => {
     setCurrentView('home');
     setSessionId('');
+    setJoinError('');
   };
 
   // Если мы в режиме сессии, показываем редактор
@@ -174,12 +241,15 @@ function App() {
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
                 }}
+                onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
               >
                 ← Back to Home
               </button>
-              <h1 style={{ color: 'white', margin: 0, fontSize: '28px' }}>
+              <h1 style={{ color: 'white', margin: 0, fontSize: '28px', fontWeight: 'bold' }}>
                 Create New Session
               </h1>
             </div>
@@ -293,10 +363,14 @@ function App() {
             padding: '30px',
             borderRadius: '16px',
             boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            textAlign: 'center'
-          }}>
+            textAlign: 'center',
+            transition: 'transform 0.2s ease'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>👨‍🏫</div>
-            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Create Session</h2>
+            <h2 style={{ color: '#1f2937', marginBottom: '12px', fontSize: '24px' }}>Create Session</h2>
             <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>
               Start a new coding session as a mentor. Choose from 16+ programming languages, 
               set up the environment, and invite students to join.
@@ -313,7 +387,7 @@ function App() {
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 width: '100%',
-                transition: 'transform 0.2s'
+                transition: 'all 0.2s ease'
               }}
               onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
@@ -328,10 +402,14 @@ function App() {
             padding: '30px',
             borderRadius: '16px',
             boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            textAlign: 'center'
-          }}>
+            textAlign: 'center',
+            transition: 'transform 0.2s ease'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
-            <h2 style={{ color: '#1f2937', marginBottom: '12px' }}>Join Session</h2>
+            <h2 style={{ color: '#1f2937', marginBottom: '12px', fontSize: '24px' }}>Join Session</h2>
             <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: '1.5' }}>
               Join an existing coding session as a student or co-mentor. 
               Enter the session ID provided by your mentor to start collaborating.
@@ -348,7 +426,7 @@ function App() {
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 width: '100%',
-                transition: 'transform 0.2s'
+                transition: 'all 0.2s ease'
               }}
               onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
@@ -424,7 +502,7 @@ function App() {
                           borderRadius: '8px',
                           cursor: 'pointer',
                           textAlign: 'left',
-                          transition: 'all 0.2s',
+                          transition: 'all 0.2s ease',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '10px'
@@ -477,16 +555,16 @@ function App() {
                         padding: '12px',
                         borderRadius: '8px',
                         cursor: 'pointer',
-                        transition: 'all 0.2s',
+                        transition: 'all 0.2s ease',
                         position: 'relative'
                       }}
                       onMouseOver={(e) => {
-                        e.target.style.background = '#f8fafc';
-                        e.target.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.background = '#f8fafc';
+                        e.currentTarget.style.borderColor = '#3b82f6';
                       }}
                       onMouseOut={(e) => {
-                        e.target.style.background = 'white';
-                        e.target.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.background = 'white';
+                        e.currentTarget.style.borderColor = '#e5e7eb';
                       }}
                     >
                       <button
@@ -500,8 +578,11 @@ function App() {
                           color: '#9ca3af',
                           cursor: 'pointer',
                           fontSize: '12px',
-                          padding: '4px'
+                          padding: '4px',
+                          borderRadius: '4px'
                         }}
+                        onMouseOver={(e) => e.target.style.background = '#f3f4f6'}
+                        onMouseOut={(e) => e.target.style.background = 'none'}
                         title="Remove from history"
                       >
                         ✕
@@ -514,6 +595,8 @@ function App() {
                           <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{session.id}</div>
                           <div style={{ fontSize: '11px', color: '#9ca3af' }}>
                             {SUPPORTED_LANGUAGES[session.language]?.name} • {session.role}
+                            {session.isQuickStart && ' • ⚡ Quick Start'}
+                            {session.createdFromWizard && ' • 🎯 Created'}
                           </div>
                         </div>
                       </div>
@@ -600,7 +683,25 @@ function App() {
             maxWidth: '500px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
           }}>
-            <h2 style={{ marginBottom: '20px', color: '#1f2937' }}>Join Session</h2>
+            <h2 style={{ marginBottom: '20px', color: '#1f2937', fontSize: '24px' }}>Join Session</h2>
+            
+            {/* Сообщение об ошибке */}
+            {joinError && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#dc2626',
+                padding: '12px',
+                borderRadius: '6px',
+                marginBottom: '20px',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                ⚠️ {joinError}
+              </div>
+            )}
             
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>
@@ -614,11 +715,14 @@ function App() {
                 style={{
                   width: '100%',
                   padding: '10px 12px',
-                  border: '1px solid #d1d5db',
+                  border: joinError ? '1px solid #dc2626' : '1px solid #d1d5db',
                   borderRadius: '6px',
                   fontSize: '16px',
-                  textTransform: 'uppercase'
+                  textTransform: 'uppercase',
+                  transition: 'border-color 0.2s ease'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = joinError ? '#dc2626' : '#d1d5db'}
               />
             </div>
 
@@ -648,7 +752,8 @@ function App() {
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    fontWeight: joinRole === 'mentor' ? 'bold' : 'normal'
+                    fontWeight: joinRole === 'mentor' ? 'bold' : 'normal',
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   👨‍🏫 Mentor
@@ -663,7 +768,8 @@ function App() {
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    fontWeight: joinRole === 'student' ? 'bold' : 'normal'
+                    fontWeight: joinRole === 'student' ? 'bold' : 'normal',
+                    transition: 'all 0.2s ease'
                   }}
                 >
                   👨‍🎓 Student
@@ -673,38 +779,63 @@ function App() {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={() => setShowJoinModal(false)}
+                onClick={() => {
+                  setShowJoinModal(false);
+                  setJoinError('');
+                }}
+                disabled={isJoining}
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: '#6b7280',
+                  background: isJoining ? '#9ca3af' : '#6b7280',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: 'pointer'
+                  cursor: isJoining ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease'
                 }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleJoinSession}
+                disabled={isJoining || !joinSessionId.trim()}
                 style={{
                   flex: 1,
                   padding: '12px',
-                  background: '#10b981',
+                  background: isJoining || !joinSessionId.trim() ? '#9ca3af' : '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
+                  cursor: isJoining || !joinSessionId.trim() ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                Join Session
+                {isJoining ? (
+                  <>
+                    <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '8px' }}>
+                      ⏳
+                    </span>
+                    Joining...
+                  </>
+                ) : (
+                  'Join Session'
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 }
