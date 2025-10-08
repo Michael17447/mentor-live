@@ -850,7 +850,48 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             )}
           </button>
 
-          {/* 🔥 НОВАЯ КНОПКА ВЫВОДА КОДА */}
+          {/* 🔥 ИНДИКАТОР СЛОЖНОСТИ */}
+          {codeAnalysis && codeAnalysis.complexity && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '6px',
+              border: `1px solid ${
+                codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
+                codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
+              }`
+            }}>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
+                           codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
+              }} />
+              <span style={{ 
+                color: 'white', 
+                fontSize: '11px',
+                fontWeight: '500'
+              }}>
+                Complexity: {codeAnalysis.complexity.level}
+              </span>
+            </div>
+          )}
+
+          {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
+          <div style={{ position: 'relative' }}>
+            <LanguageSelector
+              onLanguageSelect={changeLanguage}
+              selectedLanguage={currentLanguage}
+              showSnippets={isMentor}
+              compact={true}
+            />
+          </div>
+
+          {/* 🔥 КНОПКА ВЫВОДА КОДА */}
           <button
             onClick={toggleCodeExecutor}
             style={{
@@ -866,73 +907,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               fontSize: '14px',
               fontWeight: '500'
             }}
-            title="Execute Code"
+            title="Запустить код"
           >
             🚀 Run Code
           </button>
 
-          {/* Кнопка микрофона */}
-          <button
-            onClick={toggleMicrophone}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: isMicOn ? '#ef4444' : '#374151',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            {isMicOn ? '🎤' : '🎤'} {isMicOn ? 'Выкл' : 'Вкл'} микрофон
-          </button>
-
-          {/* Индикатор аудио собеседника */}
-          {remoteAudioActive && (
-            <div style={{
-              padding: '6px 12px',
-              background: '#10b981',
-              borderRadius: '6px',
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: '500',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              🔊 Говорит
-            </div>
-          )}
-        </div>
-
-        {/* Правая группа кнопок */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* Кнопка смены языка */}
-          <button
-            onClick={() => setShowLanguageSelector(!showLanguageSelector)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: showLanguageSelector ? '#8b5cf6' : '#374151',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            🌍 {SUPPORTED_LANGUAGES[currentLanguage]?.name || 'Выбрать язык'}
-          </button>
-
-          {/* Кнопка сниппетов (только для ментора) */}
-          {isMentor && (
+          {/* 🔥 КНОПКА СНИППЕТОВ ДЛЯ МЕНТОРА */}
+          {isMentor && LANGUAGE_SNIPPETS[currentLanguage] && (
             <button
               onClick={() => setShowSnippetsPanel(!showSnippetsPanel)}
               style={{
@@ -948,20 +929,167 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 fontSize: '14px',
                 fontWeight: '500'
               }}
+              title="Фрагменты кода (Ctrl+S)"
             >
-              📝 Snippets
+              📋 Сниппеты
             </button>
           )}
 
-          {/* Кнопка разрешения редактирования (только для ментора) */}
+          <button
+            onClick={toggleMicrophone}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: isMicOn ? '#ef4444' : '#3b82f6',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              minWidth: '100px'
+            }}
+          >
+            🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
+          </button>
+
+          {/* 🔥 КНОПКА ПЕРЕКЛЮЧЕНИЯ РЕДАКТИРОВАНИЯ ДЛЯ УЧЕНИКА */}
+          {isMentor && (
+            <>
+              <button
+                onClick={toggleStudentEditPermission}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: studentCanEdit ? '#f59e0b' : '#6b7280',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить ученику редактирование"}
+              >
+                {studentCanEdit ? '🔒 Заблокировать' : '✏️ Разрешить'}
+              </button>
+
+              <button
+                onClick={handleForceSync}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#6366f1',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                title="Принудительная синхронизация кода"
+              >
+                🔄 Синхр.
+              </button>
+
+              <button
+                onClick={requestSessionState}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#6b7280',
+                  color: 'white',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                title="Запросить состояние сессии"
+              >
+                📊 Статус
+              </button>
+            </>
+          )}
+
+          {/* 🔥 ИНДИКАТОР ДЛЯ УЧЕНИКА */}
+          {!isMentor && (
+            <div style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              background: studentCanEdit ? '#10b981' : '#ef4444',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              {studentCanEdit ? '✏️ Редактирование' : '🔒 Только просмотр'}
+            </div>
+          )}
+        </div>
+
+        {/* Правая группа кнопок */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Кнопки экспорта */}
+          <button
+            onClick={exportCode}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#059669',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Экспорт кода в файл"
+          >
+            💾 Экспорт кода
+          </button>
+
+          <button
+            onClick={downloadSession}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#10b981',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            title="Скачать данные сессии"
+          >
+            📥 Скачать сессию
+          </button>
+
+          {/* AI Panel Toggle */}
           {isMentor && (
             <button
-              onClick={toggleStudentEditPermission}
+              onClick={() => setShowAIPanel(!showAIPanel)}
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
                 border: 'none',
-                background: studentCanEdit ? '#10b981' : '#ef4444',
+                background: aiHints.length > 0 ? '#8b5cf6' : '#6b7280',
                 color: 'white',
                 cursor: 'pointer',
                 display: 'flex',
@@ -970,111 +1098,12 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 fontSize: '14px',
                 fontWeight: '500'
               }}
-              title={studentCanEdit ? 'Ученик может редактировать код' : 'Ученик не может редактировать код'}
             >
-              {studentCanEdit ? '✏️ Редактирование включено' : '⛔ Редактирование выключено'}
+              🧠 ИИ ({aiHints.length})
             </button>
           )}
 
-          {/* Индикатор прав редактирования (для ученика) */}
-          {!isMentor && (
-            <div style={{
-              padding: '6px 12px',
-              background: studentCanEdit ? '#10b981' : '#ef4444',
-              borderRadius: '6px',
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: '500',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              {studentCanEdit ? '✏️ Можно редактировать' : '⛔ Только просмотр'}
-            </div>
-          )}
-
-          {/* Кнопка синхронизации */}
-          <button
-            onClick={handleForceSync}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: '#f59e0b',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-            title="Принудительная синхронизация кода"
-          >
-            🔄 Синхронизация
-          </button>
-
-          {/* Кнопка AI-панели */}
-          <button
-            onClick={() => setShowAIPanel(!showAIPanel)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: showAIPanel ? '#8b5cf6' : '#374151',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            🧠 AI Hints {aiHints.length > 0 && `(${aiHints.length})`}
-          </button>
-
-          {/* Кнопка экспорта */}
-          <button
-            onClick={exportCode}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: '#3b82f6',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            💾 Экспорт кода
-          </button>
-
-          {/* Кнопка скачивания сессии */}
-          <button
-            onClick={downloadSession}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: '#6366f1',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            📥 Скачать сессию
-          </button>
-
-          {/* Кнопка завершения сессии (только для ментора) */}
+          {/* Кнопка завершения сессии для ментора */}
           {isMentor && (
             <button
               onClick={endSession}
@@ -1085,238 +1114,263 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 background: '#dc2626',
                 color: 'white',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
                 fontSize: '14px',
                 fontWeight: '500'
               }}
+              title="Завершить сессию для всех участников"
             >
-              ⏹️ Завершить сессию
+              🔚 Завершить
             </button>
           )}
+
+          {/* Кнопка выхода */}
+          <button
+            onClick={() => window.location.href = '/'}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#ef4444',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Выход
+          </button>
         </div>
       </div>
 
-      {/* Основной контейнер */}
-      <div style={{ 
-        display: 'flex', 
-        flex: 1, 
-        overflow: 'hidden',
-        position: 'relative'
-      }}>
-        {/* 🔥 ПАНЕЛЬ ВЫВОДА КОДА */}
-        {showCodeExecutor && (
-          <div style={{
-            width: '400px',
-            background: '#1e1e1e',
-            borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+      {/* Индикатор активности микрофона партнёра */}
+      {remoteAudioActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: 20,
+            background: '#10b981',
+            color: 'white',
+            padding: '6px 12px',
+            borderRadius: '20px',
+            zIndex: 2000,
+            fontSize: '12px',
+            fontWeight: '500',
             display: 'flex',
-            flexDirection: 'column',
-            zIndex: 100
-          }}>
-            <CodeExecutor 
-              code={code}
-              language={currentLanguage}
-              onClose={() => setShowCodeExecutor(false)}
-            />
-          </div>
-        )}
-
-        {/* Редактор */}
-        <div style={{ 
-          flex: 1, 
-          position: 'relative',
-          minWidth: 0 // Для корректного сжатия
-        }}>
-          <Editor
-            height="100%"
-            language={currentLanguage}
-            value={code}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            options={{
-              minimap: { enabled: true },
-              fontSize: 14,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: 'on',
-              smoothScrolling: true,
-              cursorBlinking: 'smooth',
-              cursorSmoothCaretAnimation: 'on',
-              renderLineHighlight: 'all',
-              selectionHighlight: true,
-              occurrencesHighlight: true,
-              bracketPairColorization: { enabled: true },
-              guides: { bracketPairs: true },
-              suggestOnTriggerCharacters: true,
-              quickSuggestions: true,
-              parameterHints: { enabled: true },
-              // 🔥 ИСПРАВЛЕННАЯ ЛОГИКА: МЕНТОР ВСЕГДА МОЖЕТ РЕДАКТИРОВАТЬ
-              readOnly: isMentor ? false : !studentCanEdit
-            }}
-          />
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          🎧 Партнер говорит
         </div>
+      )}
 
-        {/* 🔥 ПАНЕЛЬ АНАЛИЗА КОДА */}
-        {showAnalysis && (
-          <div style={{
-            width: '400px',
-            background: '#1e1e1e',
-            borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 100
-          }}>
-            <CodeAnalysisPanel 
-              analysis={codeAnalysis}
-              onClose={() => setShowAnalysis(false)}
-            />
-          </div>
-        )}
+      {/* 🔥 КОМПОНЕНТ ВЫВОДА КОДА */}
+      {showCodeExecutor && (
+        <CodeExecutor
+          code={code}
+          language={currentLanguage}
+          sessionId={sessionId}
+          isVisible={showCodeExecutor}
+          onClose={() => setShowCodeExecutor(false)}
+        />
+      )}
 
-        {/* AI панель */}
-        {showAIPanel && (
+      {/* Панель AI (если открыта) */}
+      {isMentor && showAIPanel && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            right: 20,
+            width: 400,
+            background: '#1f2937',
+            border: '1px solid #374151',
+            borderRadius: '8px',
+            padding: '16px',
+            zIndex: 2000,
+            maxHeight: '50vh',
+            overflowY: 'auto',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+          }}
+        >
           <div
             style={{
-              position: 'absolute',
-              right: '20px',
-              top: '80px',
-              width: '350px',
-              maxHeight: '400px',
-              background: 'rgba(30, 30, 30, 0.95)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '8px',
-              padding: '15px',
-              zIndex: 1000,
-              backdropFilter: 'blur(10px)',
-              overflow: 'auto'
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <h3 style={{ margin: 0, color: 'white' }}>🧠 AI Hints</h3>
-              <button
-                onClick={() => setShowAIPanel(false)}
+            <h4 style={{ margin: 0, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🧠 ИИ Ассистент 
+              <span style={{ 
+                fontSize: '12px', 
+                background: '#374151', 
+                padding: '2px 8px', 
+                borderRadius: '12px' 
+              }}>
+                {SUPPORTED_LANGUAGES[currentLanguage]?.icon} {currentLanguage}
+              </span>
+            </h4>
+            <button
+              onClick={() => setShowAIPanel(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: '4px'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {aiHints.slice(-8).reverse().map((hint) => (
+              <div
+                key={hint.id}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '16px'
+                  padding: '12px',
+                  background: '#374151',
+                  borderRadius: '6px',
+                  borderLeft: '4px solid #8b5cf6'
                 }}
               >
-                ✕
-              </button>
-            </div>
-            {aiHints.length === 0 ? (
-              <p style={{ color: '#9ca3af', fontStyle: 'italic' }}>
-                AI будет предлагать подсказки по мере написания кода...
-              </p>
-            ) : (
-              aiHints.map((hint) => (
-                <div
-                  key={hint.id}
-                  style={{
-                    background: 'rgba(139, 92, 246, 0.2)',
-                    padding: '10px',
-                    borderRadius: '6px',
-                    marginBottom: '10px',
-                    border: '1px solid rgba(139, 92, 246, 0.3)'
-                  }}
-                >
-                  <div style={{ fontSize: '12px', color: '#d1d5db', marginBottom: '5px' }}>
-                    {hint.time} • {hint.language}
-                  </div>
-                  <div style={{ color: 'white', fontSize: '14px' }}>{hint.text}</div>
+                <div style={{ 
+                  fontSize: '12px', 
+                  color: '#9ca3af',
+                  marginBottom: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>🕒 {hint.time}</span>
+                  <span style={{ 
+                    background: '#1f2937', 
+                    padding: '2px 6px', 
+                    borderRadius: '4px',
+                    fontSize: '10px'
+                  }}>
+                    {hint.language}
+                  </span>
                 </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Селектор языка */}
-        {showLanguageSelector && (
-          <LanguageSelector
-            currentLanguage={currentLanguage}
-            onLanguageChange={changeLanguage}
-            onClose={() => setShowLanguageSelector(false)}
-          />
-        )}
-
-        {/* Панель сниппетов */}
-        {showSnippetsPanel && isMentor && (
-          <div
-            style={{
-              position: 'absolute',
-              left: '20px',
-              top: '80px',
-              width: '300px',
-              maxHeight: '500px',
-              background: 'rgba(30, 30, 30, 0.95)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '8px',
-              padding: '15px',
-              zIndex: 1000,
-              backdropFilter: 'blur(10px)',
-              overflow: 'auto'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: 'white' }}>📝 Code Snippets</h3>
-              <button
-                onClick={() => setShowSnippetsPanel(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '16px'
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            
-            {Object.entries(LANGUAGE_CATEGORIES).map(([category, languages]) => (
-              <div key={category} style={{ marginBottom: '15px' }}>
-                <h4 style={{ color: '#8b5cf6', margin: '0 0 8px 0', fontSize: '14px' }}>
-                  {category}
-                </h4>
-                {languages.map(lang => {
-                  const snippets = LANGUAGE_SNIPPETS[lang] || [];
-                  return snippets.map((snippet, index) => (
-                    <button
-                      key={`${lang}-${index}`}
-                      onClick={() => insertSnippet(snippet.code)}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '8px 12px',
-                        marginBottom: '5px',
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                      title={snippet.description}
-                    >
-                      <span>{snippet.name}</span>
-                      <span style={{ fontSize: '10px', opacity: 0.7 }}>{lang}</span>
-                    </button>
-                  ));
-                })}
+                <div style={{ color: 'white', fontSize: '14px' }}>
+                  {hint.text}
+                </div>
               </div>
             ))}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Панель сниппетов */}
+      {showSnippetsPanel && LANGUAGE_SNIPPETS[currentLanguage] && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            left: 20,
+            width: 300,
+            background: '#1f2937',
+            border: '1px solid #374151',
+            borderRadius: '8px',
+            padding: '16px',
+            zIndex: 2000,
+            maxHeight: '60vh',
+            overflowY: 'auto',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '12px',
+            }}
+          >
+            <h4 style={{ margin: 0, color: 'white' }}>
+              📋 Сниппеты {SUPPORTED_LANGUAGES[currentLanguage]?.name}
+            </h4>
+            <button
+              onClick={() => setShowSnippetsPanel(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#9ca3af',
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                padding: '4px'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {Object.entries(LANGUAGE_SNIPPETS[currentLanguage]).map(([name, snippet]) => (
+              <button
+                key={name}
+                onClick={() => insertSnippet(snippet)}
+                style={{
+                  padding: '10px',
+                  background: '#374151',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: '13px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.background = '#4b5563'}
+                onMouseOut={(e) => e.target.style.background = '#374151'}
+              >
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{name}</div>
+                <div style={{ 
+                  fontSize: '11px', 
+                  color: '#9ca3af',
+                  fontFamily: 'monospace',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {snippet.split('\n')[0]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Основной редактор */}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <Editor
+          height="100%"
+          language={SUPPORTED_LANGUAGES[currentLanguage]?.monacoLanguage || 'javascript'}
+          value={code}
+          onChange={handleEditorChange}
+          onMount={handleEditorMount}
+          options={{
+            minimap: { enabled: true },
+            fontSize: 14,
+            wordWrap: 'on',
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            padding: { top: 16, bottom: 16 },
+            readOnly: !isMentor && !studentCanEdit,
+            theme: 'vs-dark',
+          }}
+        />
       </div>
+
+      {/* 🔥 ПАНЕЛЬ LIVE CODE ANALYSIS */}
+      <CodeAnalysisPanel
+        analysis={codeAnalysis}
+        isVisible={showAnalysis}
+        onClose={() => setShowAnalysis(false)}
+      />
     </div>
   );
 }
