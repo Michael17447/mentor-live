@@ -949,7 +949,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   };
 
-  // Получение иконки статуса подключения
   const getConnectionIcon = () => {
     switch (connectionStatus) {
       case 'connected': return '✅';
