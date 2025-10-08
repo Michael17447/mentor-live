@@ -7,7 +7,7 @@ import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './l
 import LanguageSelector from './components/LanguageSelector.jsx';
 import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
 import CodeAnalysisPanel from './components/CodeAnalysisPanel';
-import CodeExecutor from './components/CodeExecutor.jsx'; // 🔥 ДОБАВЛЕН ИМПОРТ
+import CodeExecutor from './components/CodeExecutor.jsx';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
@@ -172,7 +172,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [studentCanEdit, sessionId]);
 
-  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЙ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЯ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
@@ -1166,15 +1166,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       )}
 
       {/* 🔥 КОМПОНЕНТ ВЫВОДА КОДА */}
-      {showCodeExecutor && (
-        <CodeExecutor
-          code={code}
-          language={currentLanguage}
-          sessionId={sessionId}
-          isVisible={showCodeExecutor}
-          onClose={() => setShowCodeExecutor(false)}
-        />
-      )}
+      <CodeExecutor
+        code={code}
+        language={currentLanguage}
+        sessionId={sessionId}
+        isVisible={showCodeExecutor}
+        onClose={() => setShowCodeExecutor(false)}
+      />
 
       {/* Панель AI (если открыта) */}
       {isMentor && showAIPanel && (
