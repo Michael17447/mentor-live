@@ -81,7 +81,7 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   return null;
 };
 
-// 🔥 ПРОСТОЙ КОМПОНЕНТ ВЫВОДА КОДА ПРЯМО В ФАЙЛЕ
+// 🔥 ПРОСТОЙ КОМПОНЕНТ ВЫВОДА КОДА
 const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) => {
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
@@ -184,8 +184,6 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
             padding: '4px',
             borderRadius: '4px'
           }}
-          onMouseOver={(e) => e.target.style.background = '#374151'}
-          onMouseOut={(e) => e.target.style.background = 'none'}
         >
           ✕
         </button>
