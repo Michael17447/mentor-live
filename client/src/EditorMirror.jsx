@@ -7,7 +7,6 @@ import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './l
 import LanguageSelector from './components/LanguageSelector.jsx';
 import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
 import CodeAnalysisPanel from './components/CodeAnalysisPanel';
-import CodeExecutor from './components/CodeExecutor.jsx';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
@@ -80,6 +79,218 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
     return "Ученик активно перемещается по коду. Возможно, он ищет решение.";
   }
   return null;
+};
+
+// 🔥 ПРОСТОЙ КОМПОНЕНТ ВЫВОДА КОДА ПРЯМО В ФАЙЛЕ
+const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) => {
+  const [output, setOutput] = useState('');
+  const [error, setError] = useState('');
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  const executeCode = async () => {
+    if (!code || !language) return;
+
+    console.log(`🚀 Executing ${language} code...`);
+    setIsExecuting(true);
+    setOutput('');
+    setError('');
+
+    try {
+      const response = await fetch('https://mentor-live-production.up.railway.app/api/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          language,
+          sessionId
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setOutput(result.output);
+        setError(result.error || '');
+      } else {
+        setError(result.error || 'Execution failed');
+      }
+    } catch (err) {
+      console.error('❌ Execution request failed:', err);
+      setError('Failed to execute code: ' + err.message);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const clearOutput = () => {
+    setOutput('');
+    setError('');
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '70px',
+      right: '20px',
+      width: '500px',
+      background: '#1f2937',
+      border: '1px solid #374151',
+      borderRadius: '8px',
+      zIndex: 2000,
+      maxHeight: '80vh',
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '16px',
+        borderBottom: '1px solid #374151',
+        background: '#111827'
+      }}>
+        <h3 style={{ 
+          margin: 0, 
+          color: '#60a5fa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          🚀 Code Executor
+          <span style={{ 
+            fontSize: '12px', 
+            background: '#374151', 
+            padding: '2px 8px', 
+            borderRadius: '12px',
+            color: '#9ca3af'
+          }}>
+            {language}
+          </span>
+        </h3>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#9ca3af',
+            cursor: 'pointer',
+            fontSize: '1.2rem',
+            padding: '4px',
+            borderRadius: '4px'
+          }}
+          onMouseOver={(e) => e.target.style.background = '#374151'}
+          onMouseOut={(e) => e.target.style.background = 'none'}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Controls */}
+      <div style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid #374151',
+        background: '#111827',
+        display: 'flex',
+        gap: '10px',
+        alignItems: 'center'
+      }}>
+        <button
+          onClick={executeCode}
+          disabled={isExecuting || !code}
+          style={{
+            padding: '8px 16px',
+            background: isExecuting || !code ? '#6b7280' : '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: isExecuting || !code ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            flex: 1
+          }}
+        >
+          {isExecuting ? (
+            <>
+              <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
+              Executing...
+            </>
+          ) : (
+            <>
+              ▶️ Run Code
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={clearOutput}
+          style={{
+            padding: '8px 12px',
+            background: '#6b7280',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '12px'
+          }}
+        >
+          🧹 Clear
+        </button>
+      </div>
+
+      {/* Output Panel */}
+      <div style={{
+        flex: 1,
+        padding: '16px',
+        background: '#000000',
+        color: '#00ff00',
+        fontFamily: '"Fira Code", "Courier New", monospace',
+        fontSize: '13px',
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        lineHeight: '1.4',
+        minHeight: '200px'
+      }}>
+        {isExecuting ? (
+          <div style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
+            Executing {language} code...
+          </div>
+        ) : error ? (
+          <div style={{ color: '#ef4444' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>❌ Error:</div>
+            {error}
+          </div>
+        ) : output ? (
+          <div>
+            <div style={{ color: '#60a5fa', marginBottom: '8px', fontWeight: '500' }}>✅ Output:</div>
+            {output}
+          </div>
+        ) : (
+          <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
+            Click "Run Code" to execute your {language} code...
+          </div>
+        )}
+      </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </div>
+  );
 };
 
 export default function EditorMirror({ sessionId, isMentor, userId, embedMode = false, initialLanguage = 'javascript' }) {
@@ -172,7 +383,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [studentCanEdit, sessionId]);
 
-  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЯ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЙ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
@@ -1166,7 +1377,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       )}
 
       {/* 🔥 КОМПОНЕНТ ВЫВОДА КОДА */}
-      <CodeExecutor
+      <SimpleCodeExecutor
         code={code}
         language={currentLanguage}
         sessionId={sessionId}
