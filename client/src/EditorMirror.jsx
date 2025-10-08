@@ -10,6 +10,11 @@ import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
 const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
 
+// Отладочная информация
+console.log('🚀 Socket Server:', SOCKET_SERVER);
+console.log('🌐 Current Environment:', process.env.NODE_ENV);
+console.log('📍 Host:', window.location.hostname);
+
 // 🧠 Эмуляция AI-анализа (обновляем для multi-language)
 const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   const recentHotSpots = hotSpots.filter(h => Date.now() - h.timestamp < 30000);
