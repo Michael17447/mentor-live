@@ -8,12 +8,13 @@ import LanguageSelector from './components/LanguageSelector.jsx';
 import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
 import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
-const SOCKET_SERVER = 'https://mentor-live-production.up.railway.app';
+// 🔥 ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ПРАВИЛЬНЫЙ СЕРВЕР
+const SOCKET_SERVER = import.meta.env.VITE_SOCKET_SERVER || 'https://mentor-live-production.up.railway.app';
 
-// Отладочная информация
-console.log('🚀 Socket Server:', SOCKET_SERVER);
-console.log('🌐 Current Environment:', process.env.NODE_ENV);
-console.log('📍 Host:', window.location.hostname);
+// 🔥 ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+console.log('🚀 Vite Socket Server:', import.meta.env.VITE_SOCKET_SERVER);
+console.log('🎯 Final Socket Server:', SOCKET_SERVER);
+console.log('🌐 Vite Mode:', import.meta.env.MODE);
 
 // 🧠 Эмуляция AI-анализа (обновляем для multi-language)
 const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
