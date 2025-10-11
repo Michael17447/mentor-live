@@ -4,324 +4,245 @@ import React from 'react';
 const CodeAnalysisPanel = ({ analysis, isVisible, onClose }) => {
   if (!isVisible || !analysis) return null;
 
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'error': return '#f85149';
-      case 'warning': return '#d29922';
-      case 'info': return '#2f81f7';
-      default: return '#8b949e';
-    }
-  };
-
-  const getSeverityIcon = (severity) => {
-    switch (severity) {
-      case 'error': return '❌';
-      case 'warning': return '⚠️';
-      case 'info': return 'ℹ️';
-      default: return '📝';
+  const getComplexityColor = (level) => {
+    switch (level) {
+      case 'low': return '#10b981';
+      case 'medium': return '#f59e0b';
+      case 'high': return '#ef4444';
+      default: return '#6b7280';
     }
   };
 
   return (
     <div style={{
-      position: 'fixed',
-      top: '0',
-      right: '0',
-      width: '380px',
-      height: '100vh',
-      background: '#1e1e1e',
-      borderLeft: '1px solid #333',
-      overflow: 'auto',
+      position: 'absolute',
+      top: '70px',
+      right: '20px',
+      width: '400px',
+      background: '#1f2937',
+      border: '1px solid #374151',
+      borderRadius: '8px',
+      padding: '16px',
       zIndex: 2000,
-      boxShadow: '-5px 0 15px rgba(0,0,0,0.3)',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
     }}>
-      {/* Заголовок */}
+      {/* Header */}
       <div style={{
-        padding: '15px 20px',
-        background: '#2d2d2d',
-        borderBottom: '1px solid #333',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
+        marginBottom: '16px',
       }}>
         <h3 style={{ 
-          color: '#fff', 
           margin: 0, 
-          fontSize: '16px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px',
-          fontWeight: '600'
+          color: '#60a5fa',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          🔍 Live Code Analysis
+          📊 Code Analysis
         </h3>
         <button
           onClick={onClose}
           style={{
             background: 'none',
             border: 'none',
-            color: '#fff',
-            fontSize: '18px',
+            color: '#9ca3af',
             cursor: 'pointer',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            fontSize: '1.2rem',
+            padding: '4px',
+            borderRadius: '4px'
           }}
-          onMouseOver={(e) => e.target.style.background = '#404040'}
-          onMouseOut={(e) => e.target.style.background = 'none'}
         >
           ✕
         </button>
       </div>
 
-      <div style={{ padding: '20px' }}>
-        {/* Индикатор сложности */}
-        <div style={{
-          background: '#252526',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '15px',
-          border: `1px solid ${
-            analysis.complexity.level === 'high' ? '#f85149' : 
-            analysis.complexity.level === 'medium' ? '#d29922' : '#3fb950'
-          }`
+      {/* Complexity */}
+      <div style={{ marginBottom: '16px' }}>
+        <h4 style={{ 
+          color: '#d1d5db', 
+          margin: '0 0 8px 0',
+          fontSize: '14px',
+          fontWeight: '600'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ color: '#fff', fontSize: '14px', fontWeight: '600' }}>Code Complexity</span>
-            <div style={{
-              padding: '4px 8px',
-              background: analysis.complexity.level === 'high' ? '#f85149' : 
-                         analysis.complexity.level === 'medium' ? '#d29922' : '#3fb950',
-              color: '#fff',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: 'bold'
+          Complexity
+        </h4>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '10px',
+          background: '#374151',
+          borderRadius: '6px',
+          border: `2px solid ${getComplexityColor(analysis.complexity.level)}`
+        }}>
+          <div style={{
+            width: '12px',
+            height: '12px',
+            borderRadius: '50%',
+            background: getComplexityColor(analysis.complexity.level)
+          }} />
+          <div>
+            <div style={{ 
+              color: 'white', 
+              fontWeight: 'bold',
+              fontSize: '14px'
             }}>
               {analysis.complexity.level.toUpperCase()}
             </div>
-          </div>
-          <div style={{ color: '#8b949e', fontSize: '12px' }}>
-            {analysis.complexity.score} control structures detected
-          </div>
-          {analysis.complexity.level === 'high' && (
             <div style={{ 
-              color: '#f85149', 
-              fontSize: '11px', 
-              marginTop: '8px',
-              padding: '6px',
-              background: 'rgba(248, 81, 73, 0.1)',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
+              color: '#9ca3af', 
+              fontSize: '12px' 
             }}>
-              ⚠️ Consider simplifying complex logic
+              Score: {analysis.complexity.score} • {analysis.complexity.description}
             </div>
-          )}
+          </div>
         </div>
+      </div>
 
-        {/* Метрики кода */}
-        <div style={{
-          background: '#252526',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '15px'
+      {/* Metrics */}
+      <div style={{ marginBottom: '16px' }}>
+        <h4 style={{ 
+          color: '#d1d5db', 
+          margin: '0 0 8px 0',
+          fontSize: '14px',
+          fontWeight: '600'
         }}>
-          <h4 style={{ 
-            color: '#fff', 
-            margin: '0 0 12px 0', 
-            fontSize: '14px',
-            fontWeight: '600'
-          }}>
-            📊 Code Metrics
-          </h4>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr',
-            gap: '12px',
-            fontSize: '12px'
-          }}>
-            <div>
-              <div style={{ color: '#8b949e' }}>Total Lines</div>
-              <div style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>{analysis.metrics.totalLines}</div>
-            </div>
-            <div>
-              <div style={{ color: '#8b949e' }}>Code Lines</div>
-              <div style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>{analysis.metrics.codeLines}</div>
-            </div>
-            <div>
-              <div style={{ color: '#8b949e' }}>Comments</div>
-              <div style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>{analysis.metrics.commentLines}</div>
-            </div>
-            <div>
-              <div style={{ color: '#8b949e' }}>Blank Lines</div>
-              <div style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>{analysis.metrics.blankLines}</div>
-            </div>
+          Metrics
+        </h4>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '8px',
+          background: '#374151',
+          padding: '12px',
+          borderRadius: '6px'
+        }}>
+          <div style={{ color: 'white', fontSize: '12px' }}>
+            <div>Total Lines</div>
+            <div style={{ fontWeight: 'bold' }}>{analysis.metrics.totalLines}</div>
           </div>
-          <div style={{
-            marginTop: '10px',
-            padding: '8px',
-            background: 'rgba(56, 139, 253, 0.1)',
-            border: '1px solid #388bfd',
-            borderRadius: '4px'
-          }}>
-            <div style={{ color: '#388bfd', fontSize: '11px', fontWeight: '500' }}>
-              Comment ratio: {(analysis.metrics.commentRatio * 100).toFixed(1)}%
-            </div>
+          <div style={{ color: 'white', fontSize: '12px' }}>
+            <div>Code Lines</div>
+            <div style={{ fontWeight: 'bold' }}>{analysis.metrics.codeLines}</div>
+          </div>
+          <div style={{ color: 'white', fontSize: '12px' }}>
+            <div>Comments</div>
+            <div style={{ fontWeight: 'bold' }}>{analysis.metrics.commentLines}</div>
+          </div>
+          <div style={{ color: 'white', fontSize: '12px' }}>
+            <div>Blank</div>
+            <div style={{ fontWeight: 'bold' }}>{analysis.metrics.blankLines}</div>
           </div>
         </div>
+      </div>
 
-        {/* Предупреждения */}
-        {analysis.warnings.length > 0 && (
-          <div style={{
-            background: '#252526',
-            padding: '15px',
-            borderRadius: '8px',
-            marginBottom: '15px'
+      {/* Warnings */}
+      {analysis.warnings.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <h4 style={{ 
+            color: '#d1d5db', 
+            margin: '0 0 8px 0',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}>
-            <h4 style={{ 
-              color: '#fff', 
-              margin: '0 0 12px 0', 
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: '600'
-            }}>
-              ⚠️ Warnings & Issues ({analysis.warnings.length})
-            </h4>
-            <div style={{ maxHeight: '200px', overflow: 'auto' }}>
-              {analysis.warnings.map((warning, index) => (
-                <div
-                  key={index}
-                  style={{
-                    padding: '10px',
-                    background: `rgba(${
-                      warning.severity === 'error' ? '248, 81, 73' : 
-                      warning.severity === 'warning' ? '210, 153, 34' : '47, 129, 247'
-                    }, 0.1)`,
-                    border: `1px solid ${getSeverityColor(warning.severity)}`,
-                    borderRadius: '6px',
-                    marginBottom: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', flexShrink: 0 }}>
-                      {getSeverityIcon(warning.severity)}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        color: getSeverityColor(warning.severity),
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        marginBottom: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        Line {warning.line}
-                        <span style={{
-                          padding: '1px 6px',
-                          background: getSeverityColor(warning.severity),
-                          color: '#fff',
-                          borderRadius: '8px',
-                          fontSize: '9px',
-                          fontWeight: 'bold'
-                        }}>
-                          {warning.severity.toUpperCase()}
-                        </span>
-                      </div>
-                      <div style={{ color: '#fff', fontSize: '12px', lineHeight: '1.4' }}>
-                        {warning.message}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Предложения */}
-        {analysis.suggestions.length > 0 && (
+            ⚠️ Warnings ({analysis.warnings.length})
+          </h4>
           <div style={{
-            background: '#252526',
-            padding: '15px',
-            borderRadius: '8px',
-            marginBottom: '15px'
+            background: '#fef3f2',
+            border: '1px solid #fecaca',
+            borderRadius: '6px',
+            padding: '12px',
+            maxHeight: '150px',
+            overflowY: 'auto'
           }}>
-            <h4 style={{ 
-              color: '#fff', 
-              margin: '0 0 12px 0', 
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: '600'
-            }}>
-              💡 Suggestions ({analysis.suggestions.length})
-            </h4>
-            {analysis.suggestions.map((suggestion, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '10px',
-                  background: 'rgba(63, 185, 80, 0.1)',
-                  border: '1px solid #3fb950',
-                  borderRadius: '6px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px'
-                }}
-              >
-                <span style={{ fontSize: '12px', flexShrink: 0 }}>💡</span>
-                <div style={{ color: '#fff', fontSize: '12px', lineHeight: '1.4', flex: 1 }}>
-                  {suggestion}
-                </div>
+            {analysis.warnings.map((warning, index) => (
+              <div key={index} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                marginBottom: '8px',
+                fontSize: '12px',
+                color: '#92400e'
+              }}>
+                <span style={{ color: '#dc2626' }}>•</span>
+                <span>{warning}</span>
               </div>
             ))}
           </div>
-        )}
-
-        {/* Нет проблем */}
-        {analysis.warnings.length === 0 && analysis.suggestions.length === 0 && (
-          <div style={{
-            background: 'rgba(63, 185, 80, 0.1)',
-            border: '1px solid #3fb950',
-            borderRadius: '8px',
-            padding: '30px 20px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '32px', marginBottom: '12px' }}>✅</div>
-            <div style={{ color: '#3fb950', fontWeight: '600', fontSize: '16px', marginBottom: '8px' }}>
-              Excellent Code Quality!
-            </div>
-            <div style={{ color: '#8b949e', fontSize: '13px', lineHeight: '1.4' }}>
-              No issues found in your code. Keep up the good work!
-            </div>
-          </div>
-        )}
-
-        {/* Время анализа */}
-        <div style={{
-          textAlign: 'center',
-          padding: '10px',
-          color: '#8b949e',
-          fontSize: '11px',
-          borderTop: '1px solid #333',
-          marginTop: '15px'
-        }}>
-          Analyzed at {new Date(analysis.timestamp).toLocaleTimeString()}
         </div>
-      </div>
+      )}
+
+      {/* Suggestions */}
+      {analysis.suggestions.length > 0 && (
+        <div>
+          <h4 style={{ 
+            color: '#d1d5db', 
+            margin: '0 0 8px 0',
+            fontSize: '14px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            💡 Suggestions
+          </h4>
+          <div style={{
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: '6px',
+            padding: '12px',
+            maxHeight: '150px',
+            overflowY: 'auto'
+          }}>
+            {analysis.suggestions.map((suggestion, index) => (
+              <div key={index} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                marginBottom: '8px',
+                fontSize: '12px',
+                color: '#166534'
+              }}>
+                <span style={{ color: '#16a34a' }}>•</span>
+                <span>{suggestion}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No Issues */}
+      {analysis.warnings.length === 0 && analysis.suggestions.length === 0 && (
+        <div style={{
+          background: '#f0fdf4',
+          border: '1px solid #bbf7d0',
+          borderRadius: '6px',
+          padding: '16px',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            color: '#166534',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}>
+            ✅ No issues found
+          </div>
+          <div style={{ 
+            color: '#4d7c0f',
+            fontSize: '12px',
+            marginTop: '4px'
+          }}>
+            Your code looks good!
+          </div>
+        </div>
+      )}
     </div>
   );
 };

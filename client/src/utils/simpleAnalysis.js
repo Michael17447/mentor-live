@@ -1,240 +1,296 @@
 // client/src/utils/simpleAnalysis.js
+
 export class SimpleCodeAnalyzer {
   static analyze(code, language = 'javascript') {
-    if (!code || code.trim().length === 0) {
-      return {
-        complexity: { score: 0, level: 'low' },
-        warnings: [],
-        metrics: { totalLines: 0, codeLines: 0, commentLines: 0, blankLines: 0, commentRatio: 0 },
-        suggestions: [],
-        timestamp: new Date().toISOString()
-      };
-    }
-
     const lines = code.split('\n');
     
+    // Базовые метрики
+    const metrics = this.calculateMetrics(lines);
+    
+    // Анализ сложности
+    const complexity = this.analyzeComplexity(code, language);
+    
+    // Поиск предупреждений
+    const warnings = this.findWarnings(code, language);
+    
+    // Генерация предложений
+    const suggestions = this.generateSuggestions(code, language, complexity);
+    
     return {
-      complexity: this.calculateComplexity(code, language),
-      warnings: this.findWarnings(code, language),
-      metrics: this.calculateMetrics(code),
-      suggestions: this.getSuggestions(code, language),
+      complexity,
+      warnings,
+      metrics,
+      suggestions,
       timestamp: new Date().toISOString()
     };
   }
 
-  static calculateComplexity(code, language) {
-    let complexity = 0;
-    let patterns = [];
-
-    // Языко-специфичные паттерны для сложности
-    switch (language) {
-      case 'javascript':
-      case 'typescript':
-        patterns = [
-          /\bif\s*\(/, /\bfor\s*\(/, /\bwhile\s*\(/, /\bswitch\s*\(/,
-          /\bcatch\s*\(/, /\bcase\s+/, /\bdefault\s*:/,
-          /\belse\s*{/, /\belse\s+if\s*\(/, /\bfunction\s+\w+\s*\(/,
-          /=>\s*{/, /\btry\s*{/
-        ];
-        break;
-      case 'python':
-        patterns = [
-          /\bif\s+/, /\bfor\s+/, /\bwhile\s+/, /\btry\s*:/,
-          /\bexcept\s+/, /\bdef\s+\w+\s*\(/, /lambda\s+/,
-          /\belif\s+/, /\belse\s*:/
-        ];
-        break;
-      case 'java':
-      case 'cpp':
-      case 'csharp':
-        patterns = [
-          /\bif\s*\(/, /\bfor\s*\(/, /\bwhile\s*\(/, /\bswitch\s*\(/,
-          /\bcatch\s*\(/, /\bcase\s+/, /\bdefault\s*:/,
-          /\belse\s*{/, /\belse\s+if\s*\(/, /\bpublic\s+\w+\s+\w+\s*\(/,
-          /\bprivate\s+\w+\s+\w+\s*\(/, /\bprotected\s+\w+\s+\w+\s*\(/,
-          /\btry\s*{/
-        ];
-        break;
-      default:
-        patterns = [
-          /\bif\s*\(/, /\bfor\s*\(/, /\bwhile\s*\(/, /\bswitch\s*\(/,
-          /\bcatch\s*\(/, /\bcase\s+/, /\bdefault\s*:/,
-          /\belse\s*{/, /\belse\s+if\s*\(/
-        ];
-    }
-    
-    patterns.forEach(pattern => {
-      const matches = code.match(new RegExp(pattern.source, 'g'));
-      if (matches) complexity += matches.length;
-    });
-    
-    let level = 'low';
-    if (complexity > 8) level = 'high';
-    else if (complexity > 4) level = 'medium';
-    
-    return { score: complexity, level };
-  }
-
-  static findWarnings(code, language) {
-    const warnings = [];
-    const lines = code.split('\n');
-    
-    lines.forEach((line, index) => {
-      const trimmed = line.trim();
-      const lineNumber = index + 1;
-      
-      // Общие проверки для всех языков
-      if (trimmed.includes('TODO:') || trimmed.includes('FIXME:')) {
-        warnings.push({
-          line: lineNumber,
-          message: 'TODO/FIXME comment found',
-          severity: 'info'
-        });
-      }
-      
-      // Проверки для JavaScript/TypeScript
-      if (['javascript', 'typescript'].includes(language)) {
-        if (trimmed.includes('console.log') && !trimmed.startsWith('//')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Remove console.log before production',
-            severity: 'warning'
-          });
-        }
-        
-        if (trimmed.includes('==') && !trimmed.includes('===') && !trimmed.startsWith('//')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Use === instead of == for strict equality',
-            severity: 'warning'
-          });
-        }
-        
-        if (trimmed.includes('var ') && !trimmed.startsWith('//')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Use let/const instead of var',
-            severity: 'warning'
-          });
-        }
-        
-        if (trimmed.includes('eval(') && !trimmed.startsWith('//')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Avoid using eval() for security reasons',
-            severity: 'error'
-          });
-        }
-
-        if (trimmed.includes('.innerHTML') && !trimmed.startsWith('//')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Consider using textContent instead of innerHTML for security',
-            severity: 'warning'
-          });
-        }
-      }
-
-      // Проверки для Python
-      if (language === 'python') {
-        if (trimmed.includes('print(') && !trimmed.startsWith('#')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Consider using logging instead of print for production',
-            severity: 'warning'
-          });
-        }
-
-        if (trimmed.includes('import *')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Avoid wildcard imports for better code clarity',
-            severity: 'warning'
-          });
-        }
-      }
-
-      // Проверки для Java
-      if (language === 'java') {
-        if (trimmed.includes('System.out.print')) {
-          warnings.push({
-            line: lineNumber,
-            message: 'Consider using Logger instead of System.out',
-            severity: 'warning'
-          });
-        }
-      }
-    });
-    
-    return warnings;
-  }
-
-  static getSuggestions(code, language) {
-    const suggestions = [];
-    const lines = code.split('\n');
-    
-    if (language === 'javascript') {
-      if (code.includes('function') && !code.includes('=>')) {
-        suggestions.push('Consider using arrow functions for better readability');
-      }
-      
-      if (code.includes('.forEach') && code.includes('for (')) {
-        suggestions.push('Consider using modern array methods like map/filter/reduce');
-      }
-    }
-    
-    if (lines.length > 50) {
-      suggestions.push('Consider breaking down into smaller functions or modules');
-    }
-    
-    const complexity = this.calculateComplexity(code, language);
-    if (complexity.level === 'high') {
-      suggestions.push('High complexity detected - consider simplifying logic or extracting functions');
-    }
-
-    // Проверка на комментарии
-    const commentLines = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('#') || 
-      line.trim().startsWith('/*')
-    ).length;
-    
-    const commentRatio = commentLines / Math.max(lines.length, 1);
-    if (commentRatio < 0.1) {
-      suggestions.push('Consider adding more comments for better code documentation');
-    }
-    
-    return suggestions;
-  }
-
-  static calculateMetrics(code) {
-    const lines = code.split('\n');
+  static calculateMetrics(lines) {
     const totalLines = lines.length;
     const codeLines = lines.filter(line => {
       const trimmed = line.trim();
-      return trimmed.length > 0 && 
-             !trimmed.startsWith('//') && 
-             !trimmed.startsWith('#') && 
-             !trimmed.startsWith('/*') &&
-             !trimmed.startsWith('*') &&
-             !trimmed.endsWith('*/');
+      return trimmed.length > 0 && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*');
     }).length;
     
     const commentLines = lines.filter(line => {
       const trimmed = line.trim();
-      return trimmed.startsWith('//') || 
-             trimmed.startsWith('#') || 
-             trimmed.startsWith('/*') ||
-             trimmed.startsWith('*') ||
-             trimmed.endsWith('*/');
+      return trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*');
     }).length;
     
+    const blankLines = lines.filter(line => line.trim().length === 0).length;
+    
+    const commentRatio = totalLines > 0 ? (commentLines / totalLines) * 100 : 0;
+
     return {
       totalLines,
       codeLines,
       commentLines,
-      blankLines: totalLines - codeLines - commentLines,
-      commentRatio: commentLines / Math.max(codeLines, 1)
+      blankLines,
+      commentRatio: Math.round(commentRatio * 100) / 100
     };
   }
+
+  static analyzeComplexity(code, language) {
+    let score = 0;
+    
+    // Подсчет структур управления
+    const controlStructures = {
+      javascript: [
+        /if\s*\(/g,
+        /for\s*\(/g,
+        /while\s*\(/g,
+        /switch\s*\(/g,
+        /catch\s*\(/g,
+        /\?.*:/g, // ternary operator
+        /&&|\|\|/g // logical operators
+      ],
+      python: [
+        /if\s+/g,
+        /for\s+/g,
+        /while\s+/g,
+        /try:/g,
+        /except/g,
+        /and|or/g
+      ],
+      java: [
+        /if\s*\(/g,
+        /for\s*\(/g,
+        /while\s*\(/g,
+        /switch\s*\(/g,
+        /catch\s*\(/g,
+        /\?.*:/g,
+        /&&|\|\|/g
+      ],
+      cpp: [
+        /if\s*\(/g,
+        /for\s*\(/g,
+        /while\s*\(/g,
+        /switch\s*\(/g,
+        /catch\s*\(/g,
+        /\?.*:/g,
+        /&&|\|\|/g
+      ],
+      default: [
+        /if\s*\(/g,
+        /for\s*\(/g,
+        /while\s*\(/g,
+        /switch\s*\(/g
+      ]
+    };
+
+    const patterns = controlStructures[language] || controlStructures.default;
+    
+    patterns.forEach(pattern => {
+      const matches = code.match(pattern);
+      if (matches) {
+        score += matches.length;
+      }
+    });
+
+    // Определение уровня сложности
+    let level = 'low';
+    if (score > 10) level = 'high';
+    else if (score > 5) level = 'medium';
+
+    return {
+      score,
+      level,
+      description: this.getComplexityDescription(level)
+    };
+  }
+
+  static findWarnings(code, language) {
+    const warnings = [];
+    
+    const warningPatterns = {
+      javascript: [
+        {
+          pattern: /console\.log/g,
+          message: 'Обнаружены console.log - рекомендуется убрать для продакшена'
+        },
+        {
+          pattern: /alert\(/g,
+          message: 'Обнаружен alert - не рекомендуется для пользовательского интерфейса'
+        },
+        {
+          pattern: /eval\(/g,
+          message: 'ОПАСНО: обнаружен eval - может быть уязвимостью безопасности'
+        },
+        {
+          pattern: /var\s+\w+/g,
+          message: 'Используется var - рекомендуется использовать let или const'
+        }
+      ],
+      python: [
+        {
+          pattern: /print\(/g,
+          message: 'Обнаружены print - рекомендуется использовать логирование'
+        },
+        {
+          pattern: /exec\(/g,
+          message: 'ОПАСНО: обнаружен exec - может быть уязвимостью безопасности'
+        }
+      ],
+      java: [
+        {
+          pattern: /System\.out\.println/g,
+          message: 'Обнаружен System.out.println - рекомендуется использовать логгер'
+        }
+      ],
+      default: [
+        {
+          pattern: /TODO|FIXME|XXX/gi,
+          message: 'Обнаружены метки TODO/FIXME - требуется доработка'
+        }
+      ]
+    };
+
+    const patterns = [...(warningPatterns[language] || []), ...warningPatterns.default];
+    
+    patterns.forEach(({ pattern, message }) => {
+      if (pattern.test(code)) {
+        warnings.push(message);
+      }
+    });
+
+    // Проверка длины функций/методов
+    const functionPattern = language === 'python' ? /def\s+\w+\([^)]*\):/g : /function\s+\w+\([^)]*\)\s*{/g;
+    if (functionPattern.test(code)) {
+      const lines = code.split('\n');
+      let inFunction = false;
+      let functionLineCount = 0;
+      let currentFunction = '';
+
+      lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        
+        if (functionPattern.test(trimmed)) {
+          if (inFunction && functionLineCount > 20) {
+            warnings.push(`Функция ${currentFunction} слишком длинная (${functionLineCount} строк)`);
+          }
+          inFunction = true;
+          functionLineCount = 0;
+          currentFunction = trimmed.match(functionPattern)?.[0] || 'unknown';
+        }
+        
+        if (inFunction) {
+          functionLineCount++;
+          
+          // Проверка конца функции
+          if ((language === 'python' && trimmed.match(/^\w/)) || 
+              (language !== 'python' && trimmed === '}')) {
+            if (functionLineCount > 20) {
+              warnings.push(`Функция ${currentFunction} слишком длинная (${functionLineCount} строк)`);
+            }
+            inFunction = false;
+          }
+        }
+      });
+    }
+
+    return warnings;
+  }
+
+  static generateSuggestions(code, language, complexity) {
+    const suggestions = [];
+
+    // Предложения по сложности
+    if (complexity.level === 'high') {
+      suggestions.push('Высокая сложность кода - рассмотрите рефакторинг на более мелкие функции');
+    }
+
+    // Предложения по языку
+    const languageSuggestions = {
+      javascript: [
+        'Используйте const для неизменяемых переменных',
+        'Рассмотрите использование стрелочных функций',
+        'Проверьте обработку ошибок с try/catch'
+      ],
+      python: [
+        'Используйте type hints для лучшей читаемости',
+        'Рассмотрите использование list/dict comprehensions',
+        'Проверьте обработку исключений'
+      ],
+      java: [
+        'Добавьте javadoc комментарии',
+        'Проверьте модификаторы доступа',
+        'Рассмотрите использование Stream API'
+      ],
+      cpp: [
+        'Проверьте управление памятью',
+        'Используйте умные указатели',
+        'Рассмотрите использование STL контейнеров'
+      ]
+    };
+
+    const langSuggestions = languageSuggestions[language] || [];
+    suggestions.push(...langSuggestions);
+
+    // Предложения по структуре кода
+    if (code.length > 500) {
+      suggestions.push('Код довольно длинный - рассмотрите разделение на модули');
+    }
+
+    const lines = code.split('\n');
+    const commentRatio = lines.filter(line => 
+      line.trim().startsWith('//') || 
+      line.trim().startsWith('/*') || 
+      line.trim().startsWith('#') ||
+      line.trim().startsWith('*')
+    ).length / lines.length;
+
+    if (commentRatio < 0.1) {
+      suggestions.push('Добавьте комментарии для лучшей читаемости кода');
+    }
+
+    return suggestions;
+  }
+
+  static getComplexityDescription(level) {
+    const descriptions = {
+      low: 'Простой код, легко читается и поддерживается',
+      medium: 'Умеренная сложность, требуется некоторое внимание',
+      high: 'Высокая сложность, рекомендуется рефакторинг'
+    };
+    return descriptions[level] || 'Неизвестный уровень сложности';
+  }
+
+  // Дополнительные утилиты
+  static countOccurrences(text, pattern) {
+    const matches = text.match(pattern);
+    return matches ? matches.length : 0;
+  }
+
+  static hasNestedStructures(code, language) {
+    const nestedPatterns = {
+      javascript: /if\s*\([^)]*\)\s*\{[^{}]*if\s*\([^)]*\)/g,
+      python: /if[^{}:]*:\s*\n\s*if/g,
+      default: /if\s*\([^)]*\)\s*\{[^{}]*if\s*\([^)]*\)/g
+    };
+    
+    const pattern = nestedPatterns[language] || nestedPatterns.default;
+    return pattern.test(code);
+  }
 }
+
+export default SimpleCodeAnalyzer;
