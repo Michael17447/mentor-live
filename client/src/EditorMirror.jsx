@@ -5,21 +5,19 @@ import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './languages.js';
 import LanguageSelector from './components/LanguageSelector.jsx';
-import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
-import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
 // 🔥 ИСПОЛЬЗУЕМ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ VITE
 const SOCKET_SERVER = import.meta.env.VITE_SOCKET_SERVER || 'https://mentor-live-production.up.railway.app';
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://mentor-live-production.up.railway.app';
 
 // 🔥 ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-console.log('🚀 Vite Configuration:');
+console.log('🚀 EditorMirror - Vite Configuration:');
 console.log('📍 Socket Server:', SOCKET_SERVER);
 console.log('📍 API Base:', API_BASE);
 console.log('🌐 Environment:', import.meta.env.MODE);
 console.log('=======================');
 
-// 🧠 Эмуляция AI-анализа (обновляем для multi-language)
+// 🧠 Эмуляция AI-анализа
 const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   const recentHotSpots = hotSpots.filter(h => Date.now() - h.timestamp < 30000);
   
@@ -313,12 +311,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showSnippetsPanel, setShowSnippetsPanel] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
-  
-  // 🔥 НОВЫЕ СОСТОЯНИЯ ДЛЯ LIVE CODE ANALYSIS
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [codeAnalysis, setCodeAnalysis] = useState(null);
-  
-  // 🔥 ДОБАВЛЕНО СОСТОЯНИЕ ДЛЯ ВЫВОДА КОДА
   const [showCodeExecutor, setShowCodeExecutor] = useState(false);
 
   const editorRef = useRef(null);
@@ -330,38 +322,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
   const lastCodeUpdateRef = useRef(Date.now());
   const reconnectAttemptsRef = useRef(0);
   const isInitialMountRef = useRef(true);
-  const analysisTimeoutRef = useRef(null);
   const lastServerCodeRef = useRef('');
-
-  // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА КОДА (ИСПРАВЛЕННАЯ)
-  const analyzeCode = useCallback((codeToAnalyze) => {
-    if (analysisTimeoutRef.current) {
-      clearTimeout(analysisTimeoutRef.current);
-    }
-    
-    analysisTimeoutRef.current = setTimeout(() => {
-      try {
-        const analysis = SimpleCodeAnalyzer.analyze(codeToAnalyze, currentLanguage);
-        setCodeAnalysis(analysis);
-      } catch (error) {
-        console.error('Code analysis error:', error);
-        setCodeAnalysis({
-          complexity: { score: 0, level: 'low' },
-          warnings: [],
-          metrics: { totalLines: 0, codeLines: 0, commentLines: 0, blankLines: 0, commentRatio: 0 },
-          suggestions: [],
-          timestamp: new Date().toISOString()
-        });
-      }
-    }, 1000);
-  }, [currentLanguage]);
-
-  // 🔥 АНАЛИЗ ПРИ ПЕРВОНАЧАЛЬНОЙ ЗАГРУЗКЕ
-  useEffect(() => {
-    if (code) {
-      analyzeCode(code);
-    }
-  }, [code, analyzeCode]);
 
   // 🔥 Логирование событий (для AI)
   const logEvent = useCallback((type, data) => {
@@ -390,7 +351,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     }
   }, [studentCanEdit, sessionId]);
 
-  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА С ЗАЩИТОЙ ОТ ЦИКЛИЧЕСКИХ ОБНОВЛЕНИЙ
+  // 🔥 ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЙ КОДА
   const handleEditorChange = useCallback((value) => {
     if (!value) return;
     
@@ -413,9 +374,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     setCode(value);
     lastCodeUpdateRef.current = now;
     
-    // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА
-    analyzeCode(value);
-    
     // 🔥 МЕНТОР ВСЕГДА ОТПРАВЛЯЕТ ИЗМЕНЕНИЯ
     if (isMentor && socketRef.current?.connected) {
       console.log('📤 Sending code change to server (mentor)');
@@ -430,7 +388,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         studentId: userId 
       });
     }
-  }, [isMentor, studentCanEdit, sessionId, userId, analyzeCode]);
+  }, [isMentor, studentCanEdit, sessionId, userId]);
 
   // 🔥 ОБРАБОТЧИК ДВИЖЕНИЯ КУРСОРА С ДЕБАУНСОМ
   const handleCursorMove = useCallback((e) => {
@@ -476,9 +434,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     lastCodeUpdateRef.current = Date.now();
     lastServerCodeRef.current = newStarterCode;
     
-    // 🔥 ЗАПУСКАЕМ АНАЛИЗ ДЛЯ НОВОГО КОДА
-    analyzeCode(newStarterCode);
-    
     // Отправляем изменение языка на сервер
     if (socketRef.current?.connected) {
       socketRef.current.emit('change-language', {
@@ -487,7 +442,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         code: newStarterCode
       });
     }
-  }, [sessionId, analyzeCode]);
+  }, [sessionId]);
 
   // 🔥 ВСТАВКА СНИППЕТА КОДА
   const insertSnippet = useCallback((snippet) => {
@@ -627,8 +582,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (timeSinceLastUpdate > 100) { // Увеличили задержку для надежности
         console.log('🔄 Применение удаленного обновления кода');
         setCode(newCode);
-        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ ПОЛУЧЕНИИ КОДА ОТ СЕРВЕРА
-        analyzeCode(newCode);
       } else {
         console.log('⏸️ Пропуск обновления кода (слишком недавнее локальное изменение)');
       }
@@ -641,8 +594,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (data.code) {
         setCode(data.code);
         lastServerCodeRef.current = data.code;
-        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ СМЕНЕ ЯЗЫКА
-        analyzeCode(data.code);
       }
     });
 
@@ -673,8 +624,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         lastServerCodeRef.current = newCode;
         setCode(newCode);
         lastCodeUpdateRef.current = Date.now();
-        // 🔥 ЗАПУСКАЕМ АНАЛИЗ КОДА УЧЕНИКА
-        analyzeCode(newCode);
       }
     });
 
@@ -686,8 +635,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
         setCode(state.code);
         setStudentCanEdit(state.studentCanEdit);
         setCurrentLanguage(state.language);
-        // 🔥 ЗАПУСКАЕМ АНАЛИЗ ПРИ ПОЛУЧЕНИИ СОСТОЯНИЯ СЕССИИ
-        analyzeCode(state.code);
       }
     });
 
@@ -721,7 +668,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     return socket;
-  }, [sessionId, userId, logEvent, isMentor, currentLanguage, analyzeCode, SOCKET_SERVER]);
+  }, [sessionId, userId, logEvent, isMentor, currentLanguage, SOCKET_SERVER]);
 
   // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {
@@ -765,9 +712,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       if (aiInterval) clearInterval(aiInterval);
       if (cursorTimeoutRef.current) {
         clearTimeout(cursorTimeoutRef.current);
-      }
-      if (analysisTimeoutRef.current) {
-        clearTimeout(analysisTimeoutRef.current);
       }
     };
   }, [sessionId, isMentor, code, connectSocket, currentLanguage]);
@@ -877,7 +821,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
       language: currentLanguage,
       languageName: languageInfo?.name,
       extension: languageInfo?.extension,
-      codeAnalysis: codeAnalysis,
       exportedAt: new Date().toISOString(),
       connectionStatus: connectionStatus,
       isMentor: isMentor,
@@ -1034,70 +977,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             <span style={{ opacity: 0.7 }}>|</span>
             <span>{isMentor ? '👨‍🏫 Ментор' : '👨‍🎓 Ученик'}</span>
           </div>
-
-          {/* 🔥 КНОПКА АНАЛИЗА КОДА */}
-          <button
-            onClick={() => setShowAnalysis(!showAnalysis)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              background: showAnalysis ? '#8b5cf6' : '#374151',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-            title="Live Code Analysis"
-          >
-            🔍 Analysis
-            {codeAnalysis && codeAnalysis.warnings && codeAnalysis.warnings.length > 0 && (
-              <span style={{
-                background: '#ef4444',
-                color: 'white',
-                borderRadius: '8px',
-                padding: '2px 6px',
-                fontSize: '10px',
-                minWidth: '16px'
-              }}>
-                {codeAnalysis.warnings.length}
-              </span>
-            )}
-          </button>
-
-          {/* 🔥 ИНДИКАТОР СЛОЖНОСТИ */}
-          {codeAnalysis && codeAnalysis.complexity && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '6px 10px',
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '6px',
-              border: `1px solid ${
-                codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
-                codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
-              }`
-            }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: codeAnalysis.complexity.level === 'high' ? '#ef4444' : 
-                           codeAnalysis.complexity.level === 'medium' ? '#f59e0b' : '#10b981'
-              }} />
-              <span style={{ 
-                color: 'white', 
-                fontSize: '11px',
-                fontWeight: '500'
-              }}>
-                Complexity: {codeAnalysis.complexity.level}
-              </span>
-            </div>
-          )}
 
           {/* 🔥 СЕЛЕКТОР ЯЗЫКА ПРОГРАММИРОВАНИЯ */}
           <div style={{ position: 'relative' }}>
@@ -1580,13 +1459,6 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           }}
         />
       </div>
-
-      {/* 🔥 ПАНЕЛЬ LIVE CODE ANALYSIS */}
-      <CodeAnalysisPanel
-        analysis={codeAnalysis}
-        isVisible={showAnalysis}
-        onClose={() => setShowAnalysis(false)}
-      />
     </div>
   );
 }
