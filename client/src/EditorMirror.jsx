@@ -8,13 +8,16 @@ import LanguageSelector from './components/LanguageSelector.jsx';
 import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
 import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
-// 🔥 ПРИНУДИТЕЛЬНО УСТАНАВЛИВАЕМ ПРАВИЛЬНЫЙ СЕРВЕР
+// 🔥 ИСПОЛЬЗУЕМ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ VITE
 const SOCKET_SERVER = import.meta.env.VITE_SOCKET_SERVER || 'https://mentor-live-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://mentor-live-production.up.railway.app';
 
 // 🔥 ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-console.log('🚀 Vite Socket Server:', import.meta.env.VITE_SOCKET_SERVER);
-console.log('🎯 Final Socket Server:', SOCKET_SERVER);
-console.log('🌐 Vite Mode:', import.meta.env.MODE);
+console.log('🚀 Vite Configuration:');
+console.log('📍 Socket Server:', SOCKET_SERVER);
+console.log('📍 API Base:', API_BASE);
+console.log('🌐 Environment:', import.meta.env.MODE);
+console.log('=======================');
 
 // 🧠 Эмуляция AI-анализа (обновляем для multi-language)
 const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
@@ -102,7 +105,7 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
     setError('');
 
     try {
-      const response = await fetch('https://mentor-live-production.up.railway.app/api/execute', {
+      const response = await fetch(`${API_BASE}/api/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -539,6 +542,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     console.log('🎯 Session ID:', sessionId);
     console.log('👤 User ID:', userId);
     console.log('🎓 Role:', isMentor ? 'mentor' : 'student');
+    console.log('📍 Connecting to:', SOCKET_SERVER);
     
     setConnectionStatus('connecting');
     
@@ -717,7 +721,7 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
     });
 
     return socket;
-  }, [sessionId, userId, logEvent, isMentor, currentLanguage, analyzeCode]);
+  }, [sessionId, userId, logEvent, isMentor, currentLanguage, analyzeCode, SOCKET_SERVER]);
 
   // 🔥 ИСПРАВЛЕННЫЙ useEffect ДЛЯ ПОДКЛЮЧЕНИЯ
   useEffect(() => {

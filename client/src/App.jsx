@@ -5,6 +5,15 @@ import CreateSessionWizard from './components/CreateSessionWizard.jsx';
 import LanguageSelector from './components/LanguageSelector.jsx';
 import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES } from './languages.js';
 
+// 🔥 ИСПОЛЬЗУЕМ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ VITE
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://mentor-live-production.up.railway.app';
+
+// 🔥 ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+console.log('🚀 App.jsx - Vite Configuration:');
+console.log('📍 API Base:', API_BASE);
+console.log('🌐 Environment:', import.meta.env.MODE);
+console.log('=======================');
+
 function App() {
   const [currentView, setCurrentView] = useState('home');
   const [sessionId, setSessionId] = useState('');
@@ -36,7 +45,7 @@ function App() {
 
   const fetchServerStats = async () => {
     try {
-      const response = await fetch('https://mentor-live-production.up.railway.app/api/stats');
+      const response = await fetch(`${API_BASE}/api/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -50,7 +59,7 @@ function App() {
   const checkSessionExists = async (sessionId) => {
     try {
       console.log(`🔍 Checking if session exists: ${sessionId}`);
-      const response = await fetch(`https://mentor-live-production.up.railway.app/api/sessions/${sessionId}/info`);
+      const response = await fetch(`${API_BASE}/api/sessions/${sessionId}/info`);
       
       if (response.ok) {
         const sessionInfo = await response.json();
