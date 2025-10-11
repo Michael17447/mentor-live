@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 import Peer from 'simple-peer';
 import { SUPPORTED_LANGUAGES, LANGUAGE_CATEGORIES, LANGUAGE_SNIPPETS } from './languages.js';
 import LanguageSelector from './components/LanguageSelector.jsx';
-import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis.js';
+import { SimpleCodeAnalyzer } from '../utils/simpleAnalysis';
 import CodeAnalysisPanel from './components/CodeAnalysisPanel';
 
 // 🔥 ИСПОЛЬЗУЕМ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ VITE

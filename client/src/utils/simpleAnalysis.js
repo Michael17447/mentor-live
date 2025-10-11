@@ -2,39 +2,51 @@
 
 export class SimpleCodeAnalyzer {
   static analyze(code, language = 'javascript') {
-    const lines = code.split('\n');
-    
-    // Базовые метрики
-    const metrics = this.calculateMetrics(lines);
-    
-    // Анализ сложности
-    const complexity = this.analyzeComplexity(code, language);
-    
-    // Поиск предупреждений
-    const warnings = this.findWarnings(code, language);
-    
-    // Генерация предложений
-    const suggestions = this.generateSuggestions(code, language, complexity);
-    
-    return {
-      complexity,
-      warnings,
-      metrics,
-      suggestions,
-      timestamp: new Date().toISOString()
-    };
+    try {
+      const lines = code.split('\n');
+      
+      // Базовые метрики
+      const metrics = this.calculateMetrics(lines);
+      
+      // Анализ сложности
+      const complexity = this.analyzeComplexity(code, language);
+      
+      // Поиск предупреждений
+      const warnings = this.findWarnings(code, language);
+      
+      // Генерация предложений
+      const suggestions = this.generateSuggestions(code, language, complexity);
+      
+      return {
+        complexity,
+        warnings,
+        metrics,
+        suggestions,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Analysis error:', error);
+      return this.getDefaultAnalysis();
+    }
   }
 
   static calculateMetrics(lines) {
     const totalLines = lines.length;
     const codeLines = lines.filter(line => {
       const trimmed = line.trim();
-      return trimmed.length > 0 && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*');
+      return trimmed.length > 0 && 
+             !trimmed.startsWith('//') && 
+             !trimmed.startsWith('/*') && 
+             !trimmed.startsWith('*') &&
+             !trimmed.startsWith('#');
     }).length;
     
     const commentLines = lines.filter(line => {
       const trimmed = line.trim();
-      return trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*');
+      return trimmed.startsWith('//') || 
+             trimmed.startsWith('/*') || 
+             trimmed.startsWith('*') ||
+             trimmed.startsWith('#');
     }).length;
     
     const blankLines = lines.filter(line => line.trim().length === 0).length;
@@ -61,8 +73,8 @@ export class SimpleCodeAnalyzer {
         /while\s*\(/g,
         /switch\s*\(/g,
         /catch\s*\(/g,
-        /\?.*:/g, // ternary operator
-        /&&|\|\|/g // logical operators
+        /\?.*:/g,
+        /&&|\|\|/g
       ],
       python: [
         /if\s+/g,
@@ -89,16 +101,10 @@ export class SimpleCodeAnalyzer {
         /catch\s*\(/g,
         /\?.*:/g,
         /&&|\|\|/g
-      ],
-      default: [
-        /if\s*\(/g,
-        /for\s*\(/g,
-        /while\s*\(/g,
-        /switch\s*\(/g
       ]
     };
 
-    const patterns = controlStructures[language] || controlStructures.default;
+    const patterns = controlStructures[language] || controlStructures.javascript;
     
     patterns.forEach(pattern => {
       const matches = code.match(pattern);
@@ -156,16 +162,10 @@ export class SimpleCodeAnalyzer {
           pattern: /System\.out\.println/g,
           message: 'Обнаружен System.out.println - рекомендуется использовать логгер'
         }
-      ],
-      default: [
-        {
-          pattern: /TODO|FIXME|XXX/gi,
-          message: 'Обнаружены метки TODO/FIXME - требуется доработка'
-        }
       ]
     };
 
-    const patterns = [...(warningPatterns[language] || []), ...warningPatterns.default];
+    const patterns = warningPatterns[language] || warningPatterns.javascript;
     
     patterns.forEach(({ pattern, message }) => {
       if (pattern.test(code)) {
@@ -173,39 +173,10 @@ export class SimpleCodeAnalyzer {
       }
     });
 
-    // Проверка длины функций/методов
-    const functionPattern = language === 'python' ? /def\s+\w+\([^)]*\):/g : /function\s+\w+\([^)]*\)\s*{/g;
-    if (functionPattern.test(code)) {
-      const lines = code.split('\n');
-      let inFunction = false;
-      let functionLineCount = 0;
-      let currentFunction = '';
-
-      lines.forEach((line, index) => {
-        const trimmed = line.trim();
-        
-        if (functionPattern.test(trimmed)) {
-          if (inFunction && functionLineCount > 20) {
-            warnings.push(`Функция ${currentFunction} слишком длинная (${functionLineCount} строк)`);
-          }
-          inFunction = true;
-          functionLineCount = 0;
-          currentFunction = trimmed.match(functionPattern)?.[0] || 'unknown';
-        }
-        
-        if (inFunction) {
-          functionLineCount++;
-          
-          // Проверка конца функции
-          if ((language === 'python' && trimmed.match(/^\w/)) || 
-              (language !== 'python' && trimmed === '}')) {
-            if (functionLineCount > 20) {
-              warnings.push(`Функция ${currentFunction} слишком длинная (${functionLineCount} строк)`);
-            }
-            inFunction = false;
-          }
-        }
-      });
+    // Проверка TODO/FIXME
+    const todoPattern = /TODO|FIXME|XXX/gi;
+    if (todoPattern.test(code)) {
+      warnings.push('Обнаружены метки TODO/FIXME - требуется доработка');
     }
 
     return warnings;
@@ -251,18 +222,6 @@ export class SimpleCodeAnalyzer {
       suggestions.push('Код довольно длинный - рассмотрите разделение на модули');
     }
 
-    const lines = code.split('\n');
-    const commentRatio = lines.filter(line => 
-      line.trim().startsWith('//') || 
-      line.trim().startsWith('/*') || 
-      line.trim().startsWith('#') ||
-      line.trim().startsWith('*')
-    ).length / lines.length;
-
-    if (commentRatio < 0.1) {
-      suggestions.push('Добавьте комментарии для лучшей читаемости кода');
-    }
-
     return suggestions;
   }
 
@@ -275,21 +234,14 @@ export class SimpleCodeAnalyzer {
     return descriptions[level] || 'Неизвестный уровень сложности';
   }
 
-  // Дополнительные утилиты
-  static countOccurrences(text, pattern) {
-    const matches = text.match(pattern);
-    return matches ? matches.length : 0;
-  }
-
-  static hasNestedStructures(code, language) {
-    const nestedPatterns = {
-      javascript: /if\s*\([^)]*\)\s*\{[^{}]*if\s*\([^)]*\)/g,
-      python: /if[^{}:]*:\s*\n\s*if/g,
-      default: /if\s*\([^)]*\)\s*\{[^{}]*if\s*\([^)]*\)/g
+  static getDefaultAnalysis() {
+    return {
+      complexity: { score: 0, level: 'low', description: 'Анализ не выполнен' },
+      warnings: [],
+      metrics: { totalLines: 0, codeLines: 0, commentLines: 0, blankLines: 0, commentRatio: 0 },
+      suggestions: ['Анализ кода временно недоступен'],
+      timestamp: new Date().toISOString()
     };
-    
-    const pattern = nestedPatterns[language] || nestedPatterns.default;
-    return pattern.test(code);
   }
 }
 
