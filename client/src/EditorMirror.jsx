@@ -88,11 +88,178 @@ const mockGPTAnalysis = (code, hotSpots, language = 'javascript') => {
   return null;
 };
 
-// 🔥 ПРОСТОЙ КОМПОНЕНТ ВЫВОДА КОДА
+// 🔥 УЛУЧШЕННЫЙ КОМПОНЕНТ ВЫВОДА КОДА С АНАЛИЗОМ ИМПОРТОВ
 const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) => {
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [importAnalysis, setImportAnalysis] = useState(null);
+
+  // 🔥 ФУНКЦИЯ ДЛЯ АНАЛИЗА ИМПОРТОВ НА КЛИЕНТЕ
+  const analyzeCodeImports = (code, lang) => {
+    const analysis = {
+      imports: [],
+      libraries: new Set(),
+      features: []
+    };
+
+    switch (lang) {
+      case 'javascript':
+      case 'typescript':
+        const jsPatterns = [
+          /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g,
+          /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+        ];
+        
+        jsPatterns.forEach(pattern => {
+          let match;
+          while ((match = pattern.exec(code)) !== null) {
+            analysis.imports.push(match[0]);
+            const libName = match[1].split('/')[0].replace(/^@/, '');
+            analysis.libraries.add(libName);
+          }
+        });
+
+        // TypeScript специфичные возможности
+        if (lang === 'typescript') {
+          if (code.includes('interface ')) analysis.features.push('🎯 Интерфейсы');
+          if (code.includes('type ')) analysis.features.push('🎯 Типы');
+          if (code.includes('enum ')) analysis.features.push('🎯 Перечисления');
+          if (code.includes('abstract ')) analysis.features.push('🎯 Абстрактные классы');
+          if (code.includes('private ') || code.includes('public ') || code.includes('protected ')) {
+            analysis.features.push('🎯 Модификаторы доступа');
+          }
+        }
+        break;
+
+      case 'python':
+        const pyImports = code.match(/^(import|from)\s+([^\s]+)/gm) || [];
+        pyImports.forEach(imp => {
+          analysis.imports.push(imp);
+          const libName = imp.replace(/^(import|from)\s+/, '').split(/\s|\./)[0];
+          analysis.libraries.add(libName);
+        });
+        break;
+
+      case 'java':
+        const javaImports = code.match(/^import\s+([^;]+);/gm) || [];
+        javaImports.forEach(imp => {
+          analysis.imports.push(imp);
+          const libName = imp.replace(/^import\s+/, '').replace(/;/, '').split('.').slice(0, 2).join('.');
+          analysis.libraries.add(libName);
+        });
+        break;
+
+      case 'cpp':
+        const cppIncludes = code.match(/^#include\s+[<"]([^>"]+)[>"]/gm) || [];
+        cppIncludes.forEach(inc => {
+          analysis.imports.push(inc);
+          const libName = inc.replace(/^#include\s+[<"]/, '').replace(/[>"]/, '');
+          analysis.libraries.add(libName);
+        });
+        break;
+
+      case 'html':
+        // Анализ HTML на внешние ресурсы
+        const cssLinks = code.match(/<link[^>]*href=['"]([^'"]+\.css[^'"]*)['"][^>]*>/g) || [];
+        const jsScripts = code.match(/<script[^>]*src=['"]([^'"]+\.js[^'"]*)['"][^>]*>/g) || [];
+        
+        cssLinks.forEach(link => {
+          analysis.imports.push(link);
+          const href = link.match(/href=['"]([^'"]+)['"]/)?.[1];
+          if (href) {
+            if (href.includes('bootstrap')) analysis.libraries.add('Bootstrap');
+            if (href.includes('tailwind')) analysis.libraries.add('Tailwind CSS');
+            if (href.includes('font-awesome')) analysis.libraries.add('Font Awesome');
+          }
+        });
+
+        jsScripts.forEach(script => {
+          analysis.imports.push(script);
+          const src = script.match(/src=['"]([^'"]+)['"]/)?.[1];
+          if (src) {
+            if (src.includes('jquery')) analysis.libraries.add('jQuery');
+            if (src.includes('react')) analysis.libraries.add('React');
+            if (src.includes('vue')) analysis.libraries.add('Vue');
+          }
+        });
+        break;
+
+      case 'php':
+        const includes = code.match(/(include|require)(_once)?\s*['"]([^'"]+)['"]/g) || [];
+        includes.forEach(inc => {
+          analysis.imports.push(inc);
+          const file = inc.match(/['"]([^'"]+)['"]/)?.[1];
+          if (file && file.includes('vendor/')) analysis.libraries.add('Composer Package');
+        });
+        break;
+
+      case 'ruby':
+        const requires = code.match(/require\s+['"]([^'"]+)['"]/g) || [];
+        requires.forEach(req => {
+          analysis.imports.push(req);
+          const lib = req.match(/['"]([^'"]+)['"]/)?.[1];
+          if (lib) analysis.libraries.add(lib);
+        });
+        break;
+    }
+
+    return analysis;
+  };
+
+  // 🔥 ПОПУЛЯРНЫЕ БИБЛИОТЕКИ С ИКОНКАМИ
+  const getLibraryDisplayName = (libName) => {
+    const popularLibraries = {
+      'react': '⚛️ React',
+      'vue': '🟢 Vue', 
+      'angular': '🛡️ Angular',
+      'jquery': '⚡ jQuery',
+      'lodash': '📦 Lodash',
+      'underscore': '📦 Underscore',
+      'axios': '🌐 Axios',
+      'moment': '📅 Moment.js',
+      'date-fns': '📅 date-fns',
+      'express': '🚀 Express',
+      'koa': '🎋 Koa',
+      'mongoose': '🍃 Mongoose',
+      'sequelize': '🗄️ Sequelize',
+      'redux': '📊 Redux',
+      'mobx': '📊 MobX',
+      'd3': '📊 D3.js',
+      'chart.js': '📈 Chart.js',
+      'three': '🎮 Three.js',
+      'p5': '🎨 p5.js',
+      'jest': '🃏 Jest',
+      'mocha': '☕ Mocha',
+      'chai': '✅ Chai',
+      'webpack': '📦 Webpack',
+      'babel': '🔄 Babel',
+      'typescript': '🔷 TypeScript',
+      // Python библиотеки
+      'numpy': '🔢 NumPy',
+      'pandas': '🐼 Pandas',
+      'matplotlib': '📊 Matplotlib',
+      'seaborn': '🎨 Seaborn',
+      'scikit': '🤖 Scikit-learn',
+      'tensorflow': '🧠 TensorFlow',
+      'torch': '🔥 PyTorch',
+      'keras': '🧠 Keras',
+      'django': '🎸 Django',
+      'flask': '🍶 Flask',
+      'fastapi': '⚡ FastAPI',
+      'requests': '🌐 Requests',
+      'beautifulsoup': '🍲 BeautifulSoup',
+      'selenium': '🤖 Selenium',
+      'pytest': '🃏 pytest',
+      'unittest': '✅ unittest',
+      // HTML/CSS фреймворки
+      'bootstrap': '🎨 Bootstrap',
+      'tailwind': '🎨 Tailwind CSS',
+      'font-awesome': '🔤 Font Awesome'
+    };
+
+    return popularLibraries[libName.toLowerCase()] || `📚 ${libName}`;
+  };
 
   const executeCode = async () => {
     if (!code || !language) return;
@@ -101,6 +268,10 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
     setIsExecuting(true);
     setOutput('');
     setError('');
+    
+    // 🔥 ПРЕДВАРИТЕЛЬНЫЙ АНАЛИЗ КОДА
+    const analysis = analyzeCodeImports(code, language);
+    setImportAnalysis(analysis);
 
     try {
       const response = await fetch(`${API_BASE}/api/execute`, {
@@ -134,6 +305,126 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
   const clearOutput = () => {
     setOutput('');
     setError('');
+    setImportAnalysis(null);
+  };
+
+  // 🔥 ФУНКЦИЯ ДЛЯ ОТОБРАЖЕНИЯ АНАЛИЗА ИМПОРТОВ
+  const renderImportAnalysis = () => {
+    if (!importAnalysis) return null;
+
+    const { imports, libraries, features } = importAnalysis;
+    
+    if (imports.length === 0 && libraries.size === 0 && features.length === 0) {
+      return (
+        <div style={{ 
+          padding: '12px', 
+          background: '#1a1a1a', 
+          border: '1px solid #333',
+          borderRadius: '6px',
+          marginBottom: '12px',
+          fontSize: '13px',
+          color: '#888'
+        }}>
+          📝 Используются стандартные библиотеки {language}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ 
+        padding: '12px', 
+        background: '#1a1a1a', 
+        border: '1px solid #333',
+        borderRadius: '6px',
+        marginBottom: '12px'
+      }}>
+        <div style={{ color: '#60a5fa', marginBottom: '12px', fontWeight: '500', fontSize: '14px' }}>
+          📚 Анализ зависимостей:
+        </div>
+        
+        {libraries.size > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ color: '#f59e0b', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+              📦 Библиотеки и фреймворки:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {Array.from(libraries).map((lib, index) => (
+                <span 
+                  key={index}
+                  style={{
+                    background: '#2d3748',
+                    color: '#e2e8f0',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    border: '1px solid #4a5568',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {getLibraryDisplayName(lib)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {features.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ color: '#8b5cf6', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+              🔷 Особенности языка:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {features.map((feature, index) => (
+                <span 
+                  key={index}
+                  style={{
+                    background: '#4c1d95',
+                    color: '#e9d5ff',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    border: '1px solid #7e22ce'
+                  }}
+                >
+                  {feature}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {imports.length > 0 && (
+          <div>
+            <div style={{ color: '#10b981', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+              🔗 Импорты и подключения:
+            </div>
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#cbd5e0',
+              fontFamily: '"Fira Code", monospace',
+              maxHeight: '120px',
+              overflowY: 'auto',
+              background: '#111827',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #374151'
+            }}>
+              {imports.map((imp, index) => (
+                <div key={index} style={{ 
+                  marginBottom: '4px',
+                  padding: '2px 0',
+                  borderBottom: '1px solid #2d3748'
+                }}>
+                  {imp}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (!isVisible) return null;
@@ -143,7 +434,7 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
       position: 'absolute',
       top: '70px',
       right: '20px',
-      width: '500px',
+      width: '600px',
       background: '#1f2937',
       border: '1px solid #374151',
       borderRadius: '8px',
@@ -189,8 +480,11 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
             cursor: 'pointer',
             fontSize: '1.2rem',
             padding: '4px',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            transition: 'color 0.2s'
           }}
+          onMouseOver={(e) => e.target.style.color = 'white'}
+          onMouseOut={(e) => e.target.style.color = '#9ca3af'}
         >
           ✕
         </button>
@@ -209,7 +503,7 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
           onClick={executeCode}
           disabled={isExecuting || !code}
           style={{
-            padding: '8px 16px',
+            padding: '10px 16px',
             background: isExecuting || !code ? '#6b7280' : '#10b981',
             color: 'white',
             border: 'none',
@@ -220,7 +514,14 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            flex: 1
+            flex: 1,
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            if (!isExecuting && code) e.target.style.background = '#059669';
+          }}
+          onMouseOut={(e) => {
+            if (!isExecuting && code) e.target.style.background = '#10b981';
           }}
         >
           {isExecuting ? (
@@ -238,14 +539,17 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
         <button
           onClick={clearOutput}
           style={{
-            padding: '8px 12px',
+            padding: '10px 12px',
             background: '#6b7280',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
             cursor: 'pointer',
-            fontSize: '12px'
+            fontSize: '12px',
+            transition: 'background 0.2s'
           }}
+          onMouseOver={(e) => e.target.style.background = '#4b5563'}
+          onMouseOut={(e) => e.target.style.background = '#6b7280'}
         >
           🧹 Clear
         </button>
@@ -262,26 +566,78 @@ const SimpleCodeExecutor = ({ code, language, sessionId, isVisible, onClose }) =
         overflow: 'auto',
         whiteSpace: 'pre-wrap',
         lineHeight: '1.4',
-        minHeight: '200px'
+        minHeight: '300px'
       }}>
         {isExecuting ? (
-          <div style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span>
-            Executing {language} code...
+          <div style={{ 
+            color: '#f59e0b', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            padding: '20px',
+            justifyContent: 'center',
+            flexDirection: 'column'
+          }}>
+            <span style={{ animation: 'spin 1s linear infinite', fontSize: '24px' }}>⏳</span>
+            <div>Executing {language} code...</div>
+            <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>
+              🔍 Анализируем зависимости и выполняем код
+            </div>
           </div>
         ) : error ? (
           <div style={{ color: '#ef4444' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>❌ Error:</div>
+            <div style={{ 
+              fontWeight: 'bold', 
+              marginBottom: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              ❌ Error:
+            </div>
             {error}
           </div>
         ) : output ? (
           <div>
-            <div style={{ color: '#60a5fa', marginBottom: '8px', fontWeight: '500' }}>✅ Output:</div>
+            {/* 🔥 ОТОБРАЖАЕМ АНАЛИЗ ИМПОРТОВ */}
+            {renderImportAnalysis()}
+            <div style={{ 
+              color: '#60a5fa', 
+              marginBottom: '8px', 
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              ✅ Output:
+            </div>
             {output}
           </div>
         ) : (
-          <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
-            Click "Run Code" to execute your {language} code...
+          <div style={{ 
+            color: '#6b7280', 
+            fontStyle: 'italic',
+            padding: '20px',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '12px' }}>
+              Нажмите "Run Code" чтобы выполнить ваш {language} код...
+            </div>
+            <div style={{ 
+              fontSize: '12px', 
+              background: '#1a1a1a',
+              padding: '12px',
+              borderRadius: '6px',
+              border: '1px solid #333'
+            }}>
+              🔍 Будут показаны:
+              <div style={{ marginTop: '8px', textAlign: 'left', paddingLeft: '20px' }}>
+                • Используемые библиотеки и импорты<br/>
+                • TypeScript особенности (если применимо)<br/>
+                • Результат выполнения кода<br/>
+                • Возможные ошибки
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -944,10 +1300,13 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              minWidth: '140px'
+              minWidth: '140px',
+              transition: 'all 0.2s'
             }} 
             onClick={!isConnected ? handleReconnect : undefined}
             title={`Нажмите для ${!isConnected ? 'переподключения' : 'статуса соединения'}`}
+            onMouseOver={!isConnected ? (e) => e.target.style.filter = 'brightness(1.1)' : undefined}
+            onMouseOut={!isConnected ? (e) => e.target.style.filter = 'brightness(1)' : undefined}
           >
             <span>{getConnectionIcon()}</span>
             <span>
@@ -1002,8 +1361,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               alignItems: 'center',
               gap: '6px',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '500',
+              transition: 'all 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.background = showCodeExecutor ? '#059669' : '#4b5563'}
+            onMouseOut={(e) => e.target.style.background = showCodeExecutor ? '#10b981' : '#374151'}
             title="Запустить код"
           >
             🚀 Run Code
@@ -1024,8 +1386,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '500',
+                transition: 'all 0.2s'
               }}
+              onMouseOver={(e) => e.target.style.background = showSnippetsPanel ? '#7c3aed' : '#4b5563'}
+              onMouseOut={(e) => e.target.style.background = showSnippetsPanel ? '#8b5cf6' : '#374151'}
               title="Фрагменты кода (Ctrl+S)"
             >
               📋 Сниппеты
@@ -1046,8 +1411,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               gap: '6px',
               fontSize: '14px',
               fontWeight: '500',
-              minWidth: '100px'
+              minWidth: '100px',
+              transition: 'all 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.background = isMicOn ? '#dc2626' : '#2563eb'}
+            onMouseOut={(e) => e.target.style.background = isMicOn ? '#ef4444' : '#3b82f6'}
           >
             🎙️ {isMicOn ? 'Выкл' : 'Вкл'}
           </button>
@@ -1068,8 +1436,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '14px',
-                  fontWeight: '500'
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
                 }}
+                onMouseOver={(e) => e.target.style.background = studentCanEdit ? '#d97706' : '#4b5563'}
+                onMouseOut={(e) => e.target.style.background = studentCanEdit ? '#f59e0b' : '#6b7280'}
                 title={studentCanEdit ? "Заблокировать редактирование для ученика" : "Разрешить ученику редактирование"}
               >
                 {studentCanEdit ? '🔒 Заблокировать' : '✏️ Разрешить'}
@@ -1088,8 +1459,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '14px',
-                  fontWeight: '500'
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
                 }}
+                onMouseOver={(e) => e.target.style.background = '#4f46e5'}
+                onMouseOut={(e) => e.target.style.background = '#6366f1'}
                 title="Принудительная синхронизация кода"
               >
                 🔄 Синхр.
@@ -1108,8 +1482,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '14px',
-                  fontWeight: '500'
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
                 }}
+                onMouseOver={(e) => e.target.style.background = '#4b5563'}
+                onMouseOut={(e) => e.target.style.background = '#6b7280'}
                 title="Запросить состояние сессии"
               >
                 📊 Статус
@@ -1151,8 +1528,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               alignItems: 'center',
               gap: '6px',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '500',
+              transition: 'all 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.background = '#047857'}
+            onMouseOut={(e) => e.target.style.background = '#059669'}
             title="Экспорт кода в файл"
           >
             💾 Экспорт кода
@@ -1171,8 +1551,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               alignItems: 'center',
               gap: '6px',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '500',
+              transition: 'all 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.background = '#059669'}
+            onMouseOut={(e) => e.target.style.background = '#10b981'}
             title="Скачать данные сессии"
           >
             📥 Скачать сессию
@@ -1193,8 +1576,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '500',
+                transition: 'all 0.2s'
               }}
+              onMouseOver={(e) => e.target.style.background = aiHints.length > 0 ? '#7c3aed' : '#4b5563'}
+              onMouseOut={(e) => e.target.style.background = aiHints.length > 0 ? '#8b5cf6' : '#6b7280'}
             >
               🧠 ИИ ({aiHints.length})
             </button>
@@ -1212,8 +1598,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 color: 'white',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontWeight: '500'
+                fontWeight: '500',
+                transition: 'all 0.2s'
               }}
+              onMouseOver={(e) => e.target.style.background = '#b91c1c'}
+              onMouseOut={(e) => e.target.style.background = '#dc2626'}
               title="Завершить сессию для всех участников"
             >
               🔚 Завершить
@@ -1231,8 +1620,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
               color: 'white',
               cursor: 'pointer',
               fontSize: '14px',
-              fontWeight: '500'
+              fontWeight: '500',
+              transition: 'all 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.background = '#dc2626'}
+            onMouseOut={(e) => e.target.style.background = '#ef4444'}
           >
             Выход
           </button>
@@ -1255,7 +1647,8 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            animation: 'pulse 2s infinite'
           }}
         >
           🎧 Партнер говорит
@@ -1316,8 +1709,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 color: '#9ca3af',
                 cursor: 'pointer',
                 fontSize: '1.2rem',
-                padding: '4px'
+                padding: '4px',
+                transition: 'color 0.2s'
               }}
+              onMouseOver={(e) => e.target.style.color = 'white'}
+              onMouseOut={(e) => e.target.style.color = '#9ca3af'}
             >
               ✕
             </button>
@@ -1397,8 +1793,11 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
                 color: '#9ca3af',
                 cursor: 'pointer',
                 fontSize: '1.2rem',
-                padding: '4px'
+                padding: '4px',
+                transition: 'color 0.2s'
               }}
+              onMouseOver={(e) => e.target.style.color = 'white'}
+              onMouseOut={(e) => e.target.style.color = '#9ca3af'}
             >
               ✕
             </button>
@@ -1459,6 +1858,20 @@ export default function EditorMirror({ sessionId, isMentor, userId, embedMode = 
           }}
         />
       </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
     </div>
   );
 }
