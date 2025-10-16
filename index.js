@@ -8,7 +8,6 @@ import { tmpdir } from 'os';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
-testPythonAccess();
 
 console.log('🚀 Starting CodeMentor server...');
 console.log('Node version:', process.version);
