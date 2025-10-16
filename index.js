@@ -1,9 +1,12 @@
-// server/index.js
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
+import { spawn } from 'child_process';
+import { tmpdir } from 'os';
+import { writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 
 console.log('🚀 Starting CodeMentor server...');
 console.log('Node version:', process.version);
@@ -509,41 +512,358 @@ const executeJavaScript = (code) => {
   });
 };
 
+// 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ ВЫПОЛНЕНИЯ PYTHON КОДА
 const executePython = async (code) => {
-  try {
-    // 🔥 ОБНАРУЖЕНИЕ ИМПОРТОВ В PYTHON
-    const analysis = analyzeImports(code, 'python');
-    const { imports, libraries } = analysis;
+  return new Promise((resolve) => {
+    try {
+      // 🔥 ОБНАРУЖЕНИЕ ИМПОРТОВ В PYTHON
+      const analysis = analyzeImports(code, 'python');
+      const { imports, libraries } = analysis;
 
-    const detectedLibraries = [];
-    libraries.forEach(lib => {
-      if (POPULAR_LIBRARIES[lib]) {
-        detectedLibraries.push(POPULAR_LIBRARIES[lib]);
-      } else {
-        detectedLibraries.push(`📚 ${lib}`);
+      const detectedLibraries = [];
+      libraries.forEach(lib => {
+        if (POPULAR_LIBRARIES[lib]) {
+          detectedLibraries.push(POPULAR_LIBRARIES[lib]);
+        } else {
+          detectedLibraries.push(`📚 ${lib}`);
+        }
+      });
+
+      let analysisOutput = '';
+
+      // 🔥 ДОБАВЛЯЕМ ИНФОРМАЦИЮ О БИБЛИОТЕКАХ
+      if (detectedLibraries.length > 0) {
+        analysisOutput += '📚 Обнаруженные библиотеки:\n';
+        detectedLibraries.forEach(lib => {
+          analysisOutput += `   ${lib}\n`;
+        });
+        analysisOutput += '\n';
       }
+
+      if (imports.length > 0) {
+        analysisOutput += '📦 Импорты:\n';
+        imports.forEach(imp => {
+          analysisOutput += `   ${imp}\n`;
+        });
+        analysisOutput += '\n';
+      }
+
+      // 🔥 СОЗДАЕМ ВРЕМЕННЫЙ ФАЙЛ ДЛЯ ВЫПОЛНЕНИЯ PYTHON КОДА
+      const tempDir = tmpdir();
+      const tempFile = join(tempDir, `python_exec_${Date.now()}.py`);
+      
+      // 🔥 ДОБАВЛЯЕМ ОБЕРТКУ ДЛЯ ПЕРЕХВАТА ВЫВОДА
+      const wrappedCode = `
+import sys
+import io
+import traceback
+
+# Перехватываем stdout
+old_stdout = sys.stdout
+sys.stdout = io.StringIO()
+
+try:
+    # Исходный код пользователя
+    ${code}
+    
+    # Получаем весь вывод
+    output = sys.stdout.getvalue()
+    print("__SUCCESS__")
+    print(output)
+    
+except Exception as e:
+    print("__ERROR__")
+    print(f"❌ Ошибка выполнения: {str(e)}")
+    print("\\n📋 Traceback:")
+    traceback.print_exc()
+    
+finally:
+    sys.stdout = old_stdout
+`;
+
+      writeFileSync(tempFile, wrappedCode);
+
+      // 🔥 ЗАПУСКАЕМ PYTHON ИНТЕРПРЕТАТОР
+      const pythonProcess = spawn('python', [tempFile]);
+      
+      let output = '';
+      let errorOutput = '';
+
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      pythonProcess.on('close', (code) => {
+        // Удаляем временный файл
+        try {
+          unlinkSync(tempFile);
+        } catch (e) {
+          console.log('⚠️ Не удалось удалить временный файл:', e.message);
+        }
+
+        let finalOutput = analysisOutput + '🚀 Результат выполнения:\n\n';
+
+        if (errorOutput) {
+          finalOutput += `❌ Ошибка Python:\n${errorOutput}\n`;
+        }
+
+        if (output) {
+          if (output.includes('__SUCCESS__')) {
+            const successOutput = output.split('__SUCCESS__')[1];
+            finalOutput += `✅ Успешное выполнение:\n${successOutput}`;
+          } else if (output.includes('__ERROR__')) {
+            const errorOutput = output.split('__ERROR__')[1];
+            finalOutput += `❌ Ошибка выполнения:\n${errorOutput}`;
+          } else {
+            finalOutput += `📝 Вывод Python:\n${output}`;
+          }
+        }
+
+        if (!output && !errorOutput) {
+          finalOutput += '⚠️ Нет вывода от Python процесса\n';
+          finalOutput += '💡 Проверьте наличие Python интерпретатора\n';
+        }
+
+        resolve({ output: finalOutput, error: null });
+      });
+
+      pythonProcess.on('error', (error) => {
+        // Удаляем временный файл при ошибке
+        try {
+          unlinkSync(tempFile);
+        } catch (e) {
+          console.log('⚠️ Не удалось удалить временный файл:', e.message);
+        }
+
+        let errorMessage = analysisOutput + '🚀 Результат выполнения:\n\n';
+        
+        if (error.code === 'ENOENT') {
+          errorMessage += '❌ Python не установлен или не найден в PATH\n\n';
+          errorMessage += '💡 Для работы с Python кодом необходимо:\n';
+          errorMessage += '   1. Установить Python с официального сайта\n';
+          errorMessage += '   2. Добавить Python в PATH переменные\n';
+          errorMessage += '   3. Перезапустить сервер\n\n';
+          errorMessage += '📥 Скачать Python: https://www.python.org/downloads/';
+        } else {
+          errorMessage += `❌ Ошибка запуска Python: ${error.message}`;
+        }
+
+        resolve({ output: errorMessage, error: null });
+      });
+
+      // Таймаут для выполнения (10 секунд)
+      setTimeout(() => {
+        try {
+          pythonProcess.kill();
+          unlinkSync(tempFile);
+        } catch (e) {
+          // Игнорируем ошибки при убийстве процесса
+        }
+        
+        resolve({ 
+          output: analysisOutput + '🚀 Результат выполнения:\n\n⏰ Таймаут выполнения Python кода (более 10 секунд)', 
+          error: null 
+        });
+      }, 10000);
+
+    } catch (error) {
+      resolve({ output: null, error: error.toString() });
+    }
+  });
+};
+
+const executeHTML = (code) => {
+  // 🔥 АНАЛИЗ HTML НА ВНЕШНИЕ РЕСУРСЫ
+  const analysis = {
+    imports: [],
+    libraries: new Set(),
+    features: []
+  };
+
+  // Обнаружение CSS и JS файлов
+  const cssLinks = code.match(/<link[^>]*href=['"]([^'"]+\.css[^'"]*)['"][^>]*>/g) || [];
+  const jsScripts = code.match(/<script[^>]*src=['"]([^'"]+\.js[^'"]*)['"][^>]*>/g) || [];
+  
+  cssLinks.forEach(link => {
+    analysis.imports.push(link);
+    const href = link.match(/href=['"]([^'"]+)['"]/)[1];
+    if (href.includes('bootstrap')) analysis.libraries.add('Bootstrap');
+    if (href.includes('tailwind')) analysis.libraries.add('Tailwind CSS');
+    if (href.includes('font-awesome')) analysis.libraries.add('Font Awesome');
+  });
+
+  jsScripts.forEach(script => {
+    analysis.imports.push(script);
+    const src = script.match(/src=['"]([^'"]+)['"]/)[1];
+    if (src.includes('jquery')) analysis.libraries.add('jQuery');
+    if (src.includes('react')) analysis.libraries.add('React');
+    if (src.includes('vue')) analysis.libraries.add('Vue');
+  });
+
+  let output = '🌐 HTML анализ:\n';
+  
+  if (analysis.libraries.size > 0) {
+    output += '📚 Используемые библиотеки:\n';
+    analysis.libraries.forEach(lib => {
+      output += `   🎨 ${lib}\n`;
     });
+    output += '\n';
+  }
 
-    let output = '';
+  if (analysis.imports.length > 0) {
+    output += '📦 Внешние ресурсы:\n';
+    analysis.imports.forEach(imp => {
+      output += `   ${imp}\n`;
+    });
+    output += '\n';
+  }
 
-    // 🔥 ДОБАВЛЯЕМ ИНФОРМАЦИЮ О БИБЛИОТЕКАХ
-    if (detectedLibraries.length > 0) {
-      output += '📚 Обнаруженные библиотеки:\n';
-      detectedLibraries.forEach(lib => {
-        output += `   ${lib}\n`;
-      });
-      output += '\n';
+  output += '🚀 Результат выполнения:\n';
+  output += 'HTML будет отображен в панели предпросмотра\n';
+  output += `Размер контента: ${code.length} символов`;
+
+  return {
+    output: output,
+    error: null
+  };
+};
+
+const executeTypeScript = (code) => {
+  // 🔥 АНАЛИЗ TYPESCRIPT
+  const analysis = analyzeImports(code, 'typescript');
+  const { imports, libraries, features } = analysis;
+
+  const detectedLibraries = [];
+  libraries.forEach(lib => {
+    if (POPULAR_LIBRARIES[lib]) {
+      detectedLibraries.push(POPULAR_LIBRARIES[lib]);
+    } else {
+      detectedLibraries.push(`📚 ${lib}`);
     }
+  });
 
-    if (imports.length > 0) {
-      output += '📦 Импорты:\n';
-      imports.forEach(imp => {
-        output += `   ${imp}\n`;
-      });
-      output += '\n';
-    }
+  let output = '🔷 TypeScript анализ:\n';
+  
+  if (detectedLibraries.length > 0) {
+    output += '📚 Обнаруженные библиотеки:\n';
+    detectedLibraries.forEach(lib => {
+      output += `   ${lib}\n`;
+    });
+    output += '\n';
+  }
 
-    output += '🚀 Результат выполнения:\n';
+  if (imports.length > 0) {
+    output += '📦 Импорты:\n';
+    imports.forEach(imp => {
+      output += `   ${imp}\n`;
+    });
+    output += '\n';
+  }
+
+  if (features.length > 0) {
+    output += '🔷 Используемые возможности TypeScript:\n';
+    features.forEach(feature => {
+      output += `   ${feature}\n`;
+    });
+    output += '\n';
+  }
+
+  output += '🚀 Результат выполнения:\n';
+  output += 'TypeScript код будет скомпилирован в JavaScript и выполнен';
+
+  return {
+    output: output,
+    error: null
+  };
+};
+
+const executeJava = (code) => {
+  // 🔥 ОБНАРУЖЕНИЕ ИМПОРТОВ В JAVA
+  const analysis = analyzeImports(code, 'java');
+  const { imports } = analysis;
+
+  let output = '☕ Java анализ:\n';
+  
+  if (imports.length > 0) {
+    output += '📦 Импорты пакетов:\n';
+    imports.forEach(imp => {
+      output += `   📦 ${imp}\n`;
+    });
+    output += '\n';
+  } else {
+    output += '📝 Используются стандартные библиотеки Java\n\n';
+  }
+
+  output += '🚀 Результат выполнения:\n';
+  output += 'Java код будет скомпилирован и выполнен в JVM';
+
+  return {
+    output: output,
+    error: null
+  };
+};
+
+const executeCpp = (code) => {
+  // 🔥 АНАЛИЗ C++ INCLUDES
+  const analysis = analyzeImports(code, 'cpp');
+  const { imports } = analysis;
+
+  let output = '⚡ C++ анализ:\n';
+  
+  if (imports.length > 0) {
+    output += '📦 Подключенные заголовки:\n';
+    imports.forEach(imp => {
+      output += `   ${imp}\n`;
+    });
+    output += '\n';
+  } else {
+    output += '📝 Используются стандартные библиотеки C++\n\n';
+  }
+
+  output += '🚀 Результат выполнения:\n';
+  output += 'C++ код будет скомпилирован и выполнен';
+
+  return {
+    output: output,
+    error: null
+  };
+};
+
+const executePHP = (code) => {
+  // 🔥 АНАЛИЗ PHP INCLUDES И REQUIRE
+  const includes = code.match(/(include|require)(_once)?\s*['"]([^'"]+)['"]/g) || [];
+  const imports = [];
+  const libraries = new Set();
+
+  includes.forEach(inc => {
+    imports.push(inc);
+    const file = inc.match(/['"]([^'"]+)['"]/)[1];
+    if (file.includes('vendor/')) libraries.add('Composer Package');
+  });
+
+  let output = '🐘 PHP анализ:\n';
+  
+  if (libraries.size > 0) {
+    output += '📚 Обнаруженные зависимости:\n';
+    libraries.forEach(lib => {
+      output += `   ${lib}\n`;
+    });
+    output += '\n';
+  }
+
+  if (imports.length > 0) {
+    output += '📦 Подключенные файлы:\n';
+    imports.forEach(imp => {
+      output += `   ${imp}\n`;
+    });
+    output += '\n';
+  }
+
+  output += '🚀 Результат выполнения:\n';
 
     // Эмуляция вывода print statements
     const printMatches = code.match(/print\(([^)]+)\)/g) || [];
