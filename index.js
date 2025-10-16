@@ -3,7 +3,7 @@ import http from 'http';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { tmpdir } from 'os';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
@@ -37,6 +37,44 @@ const io = new Server(server, {
   },
   transports: ['websocket', 'polling']
 });
+
+// 🔥 ПРОВЕРКА PYTHON ПРИ ЗАПУСКЕ СЕРВЕРА
+const checkPythonOnStartup = () => {
+  console.log('🔍 Проверка доступности Python...');
+  
+  const pythonCommands = [
+    'C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe',
+    'python',
+    'py',
+    'python3'
+  ];
+
+  let pythonFound = false;
+
+  pythonCommands.forEach(cmd => {
+    try {
+      const result = spawnSync(cmd, ['--version']);
+      if (result.status === 0) {
+        const version = result.stdout.toString().trim() || result.stderr.toString().trim();
+        console.log(`✅ ${cmd} доступен: ${version}`);
+        pythonFound = true;
+      } else {
+        console.log(`❌ ${cmd} не доступен (код: ${result.status})`);
+      }
+    } catch (error) {
+      console.log(`❌ ${cmd} ошибка: ${error.message}`);
+    }
+  });
+
+  if (pythonFound) {
+    console.log('🎉 Python готов к выполнению кода!');
+  } else {
+    console.log('⚠️ Python не найден. Выполнение Python кода будет недоступно.');
+  }
+};
+
+// Вызываем проверку при запуске
+checkPythonOnStartup();
 
 // 🔥 КОНФИГУРАЦИЯ ПОДДЕРЖИВАЕМЫХ ЯЗЫКОВ (16+ языков)
 const SUPPORTED_LANGUAGES = {
@@ -512,7 +550,7 @@ const executeJavaScript = (code) => {
   });
 };
 
-// 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ ВЫПОЛНЕНИЯ PYTHON КОДА
+// 🔥 ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ВЫПОЛНЕНИЯ PYTHON КОДА (WINDOWS)
 const executePython = async (code) => {
   return new Promise((resolve) => {
     try {
@@ -583,94 +621,108 @@ finally:
 
       writeFileSync(tempFile, wrappedCode);
 
-      // 🔥 ЗАПУСКАЕМ PYTHON ИНТЕРПРЕТАТОР
-      const pythonProcess = spawn('python', [tempFile]);
-      
-      let output = '';
-      let errorOutput = '';
+      // 🔥 СПИСОК КОМАНД ДЛЯ WINDOWS С ВАШИМ ПУТЕМ
+      const pythonCommands = [
+        'C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe', // 🔥 ВАШ ПУТЬ
+        'python',      // Основная команда
+        'py',          // Python Launcher
+        'python3',     // Если установлена версия 3
+      ];
 
-      pythonProcess.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      pythonProcess.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      pythonProcess.on('close', (code) => {
-        // Удаляем временный файл
-        try {
-          unlinkSync(tempFile);
-        } catch (e) {
-          console.log('⚠️ Не удалось удалить временный файл:', e.message);
+      const tryPythonExecution = (commandIndex) => {
+        if (commandIndex >= pythonCommands.length) {
+          // Все команды перепробованы
+          let errorMessage = analysisOutput + '🚀 Результат выполнения:\n\n';
+          errorMessage += '❌ Python не найден в системе\n\n';
+          errorMessage += '💡 Решения:\n';
+          errorMessage += '   1. Убедитесь, что Python установлен\n';
+          errorMessage += '   2. Добавьте Python в PATH\n';
+          errorMessage += '   3. Перезапустите сервер\n';
+          errorMessage += '   4. Укажите полный путь к python.exe в коде\n\n';
+          errorMessage += '🔍 Попробованные команды: ' + pythonCommands.join(', ');
+          
+          resolve({ output: errorMessage, error: null });
+          return;
         }
 
-        let finalOutput = analysisOutput + '🚀 Результат выполнения:\n\n';
+        const pythonCommand = pythonCommands[commandIndex];
+        console.log(`🔍 Пробуем Python команду: ${pythonCommand}`);
 
-        if (errorOutput) {
-          finalOutput += `❌ Ошибка Python:\n${errorOutput}\n`;
-        }
-
-        if (output) {
-          if (output.includes('__SUCCESS__')) {
-            const successOutput = output.split('__SUCCESS__')[1];
-            finalOutput += `✅ Успешное выполнение:\n${successOutput}`;
-          } else if (output.includes('__ERROR__')) {
-            const errorOutput = output.split('__ERROR__')[1];
-            finalOutput += `❌ Ошибка выполнения:\n${errorOutput}`;
-          } else {
-            finalOutput += `📝 Вывод Python:\n${output}`;
-          }
-        }
-
-        if (!output && !errorOutput) {
-          finalOutput += '⚠️ Нет вывода от Python процесса\n';
-          finalOutput += '💡 Проверьте наличие Python интерпретатора\n';
-        }
-
-        resolve({ output: finalOutput, error: null });
-      });
-
-      pythonProcess.on('error', (error) => {
-        // Удаляем временный файл при ошибке
-        try {
-          unlinkSync(tempFile);
-        } catch (e) {
-          console.log('⚠️ Не удалось удалить временный файл:', e.message);
-        }
-
-        let errorMessage = analysisOutput + '🚀 Результат выполнения:\n\n';
+        const pythonProcess = spawn(pythonCommand, [tempFile]);
         
-        if (error.code === 'ENOENT') {
-          errorMessage += '❌ Python не установлен или не найден в PATH\n\n';
-          errorMessage += '💡 Для работы с Python кодом необходимо:\n';
-          errorMessage += '   1. Установить Python с официального сайта\n';
-          errorMessage += '   2. Добавить Python в PATH переменные\n';
-          errorMessage += '   3. Перезапустить сервер\n\n';
-          errorMessage += '📥 Скачать Python: https://www.python.org/downloads/';
-        } else {
-          errorMessage += `❌ Ошибка запуска Python: ${error.message}`;
-        }
+        let output = '';
+        let errorOutput = '';
 
-        resolve({ output: errorMessage, error: null });
-      });
-
-      // Таймаут для выполнения (10 секунд)
-      setTimeout(() => {
-        try {
-          pythonProcess.kill();
-          unlinkSync(tempFile);
-        } catch (e) {
-          // Игнорируем ошибки при убийстве процесса
-        }
-        
-        resolve({ 
-          output: analysisOutput + '🚀 Результат выполнения:\n\n⏰ Таймаут выполнения Python кода (более 10 секунд)', 
-          error: null 
+        pythonProcess.stdout.on('data', (data) => {
+          output += data.toString();
+          console.log(`📝 Python stdout: ${data.toString()}`);
         });
-      }, 10000);
+
+        pythonProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+          console.log(`⚠️ Python stderr: ${data.toString()}`);
+        });
+
+        pythonProcess.on('close', (code) => {
+          console.log(`🔚 Python процесс завершен с кодом: ${code}`);
+          
+          // Удаляем временный файл
+          try {
+            unlinkSync(tempFile);
+          } catch (e) {
+            console.log('⚠️ Не удалось удалить временный файл:', e.message);
+          }
+
+          let finalOutput = analysisOutput + '🚀 Результат выполнения:\n\n';
+
+          if (errorOutput) {
+            finalOutput += `⚠️ Предупреждения Python:\n${errorOutput}\n`;
+          }
+
+          if (output) {
+            if (output.includes('__SUCCESS__')) {
+              const successOutput = output.split('__SUCCESS__')[1];
+              finalOutput += `✅ Успешное выполнение (${pythonCommand}):\n${successOutput}`;
+            } else if (output.includes('__ERROR__')) {
+              const errorOutput = output.split('__ERROR__')[1];
+              finalOutput += `❌ Ошибка выполнения (${pythonCommand}):\n${errorOutput}`;
+            } else {
+              finalOutput += `📝 Вывод Python (${pythonCommand}):\n${output}`;
+            }
+            resolve({ output: finalOutput, error: null });
+          } else {
+            // Пробуем следующую команду
+            console.log(`🔄 Нет вывода, пробуем следующую команду...`);
+            tryPythonExecution(commandIndex + 1);
+          }
+        });
+
+        pythonProcess.on('error', (error) => {
+          console.log(`❌ Ошибка с ${pythonCommand}:`, error.message);
+          // Пробуем следующую команду
+          tryPythonExecution(commandIndex + 1);
+        });
+
+        // Таймаут для выполнения (10 секунд)
+        setTimeout(() => {
+          console.log(`⏰ Таймаут для команды: ${pythonCommand}`);
+          try {
+            pythonProcess.kill();
+            unlinkSync(tempFile);
+          } catch (e) {
+            // Игнорируем ошибки
+          }
+          
+          // Пробуем следующую команду при таймауте
+          tryPythonExecution(commandIndex + 1);
+        }, 10000);
+      };
+
+      // Начинаем попытки выполнения
+      tryPythonExecution(0);
 
     } catch (error) {
+      console.log('❌ Ошибка в executePython:', error);
       resolve({ output: null, error: error.toString() });
     }
   });
