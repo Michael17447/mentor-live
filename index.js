@@ -8,20 +8,6 @@ import { tmpdir } from 'os';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
-const testPythonAccess = () => {
-  console.log('🔍 Тестируем доступ к Python...');
-  
-  const { execSync } = require('child_process');
-  
-  try {
-    // Проверяем ваш путь напрямую
-    const result = execSync('"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" --version', { encoding: 'utf8' });
-    console.log('✅ Python доступен через execSync:', result);
-  } catch (error) {
-    console.log('❌ Ошибка execSync:', error.message);
-  }
-};
-
 testPythonAccess();
 
 console.log('🚀 Starting CodeMentor server...');
